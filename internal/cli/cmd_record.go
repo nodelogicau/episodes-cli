@@ -389,12 +389,14 @@ func (a *app) conversationStartCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				return map[string]any{
-						"container": map[string]any{"id": containerID, "path": crel},
-						"turn":      map[string]any{"id": turnID, "path": trel, "ordinal": 1},
-					}, func(w io.Writer) {
-						fmt.Fprintf(w, "Started %s\n  %s\nTurn 1 %s\n  %s\n", containerID, crel, turnID, trel)
-					}, nil
+				out := map[string]any{
+					"container": map[string]any{"id": containerID, "path": crel},
+					"turn":      map[string]any{"id": turnID, "path": trel, "ordinal": 1},
+				}
+				text := func(w io.Writer) {
+					fmt.Fprintf(w, "Started %s\n  %s\nTurn 1 %s\n  %s\n", containerID, crel, turnID, trel)
+				}
+				return out, text, nil
 			})
 		}),
 	}
