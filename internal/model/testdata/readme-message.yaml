@@ -1,0 +1,23 @@
+id: epi_01a1b4b2-3c1d-7e5a-9f02-6b8c4d2e1a37
+type: episode
+kind: message
+occurred:
+  start: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"
+  basis: recorded
+standpoint: https://github.com/benfortuna
+participants:
+  - https://claude.ai
+  - https://github.com/benfortuna
+container: epi_01a1b4b1-8a20-7d43-b6e1-0c9f5a7d3e12
+ordinal: 7
+content:
+  mode: inline
+  media_type: text/markdown
+  derivation: verbatim
+  text: |
+    where does llm inference/agentic looping fit in this design? i assume
+    conversations is a loop, with particulars and intentions as tools
+source:
+  author: https://github.com/benfortuna
+  harness: claude
+timestamp: 2026-11-07T03:24:40Z

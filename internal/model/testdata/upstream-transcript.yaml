@@ -1,0 +1,23 @@
+id: epi_01a1b6d2-1a2b-7c3d-8e4f-5a6b7c8d9e0f
+type: episode
+kind: transcript
+occurred:
+  start: "2026-11-03"
+  tz: Australia/Melbourne
+  basis: inferred
+standpoint: https://github.com/benfortuna
+links:
+  - rel: predecessor-version
+    href: epi_01a1b6c0-2d14-7a3e-8b52-9e0f1c7d4a26
+  - rel: via
+    href: epi_01a1b6a2-7e31-7c08-a4d9-5b2e8f0c3d17
+content:
+  mode: inline
+  media_type: text/plain
+  derivation: transcribed
+  language: ja
+  text: 予算の件です
+source:
+  author: https://github.com/benfortuna
+  harness: claude
+timestamp: 2026-11-08T01:00:00Z

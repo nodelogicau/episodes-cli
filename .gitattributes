@@ -1,0 +1,7 @@
+# Origin: nodelogicau/intentions-cli .gitattributes @ b72a395454aa
+# Keep text files LF on every platform; the embedded skill is parsed by line.
+* text=auto eol=lf
+*.go text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

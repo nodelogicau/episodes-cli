@@ -1,0 +1,21 @@
+# Origin: nodelogicau/intentions-cli .golangci.yml @ b72a395454aa
+version: "2"
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+formatters:
+  enable:
+    - gofmt
+    - goimports

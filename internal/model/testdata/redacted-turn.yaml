@@ -1,0 +1,24 @@
+id: epi_01a1b6d3-1a2b-7c3d-8e4f-5a6b7c8d9e0f
+type: episode
+kind: message
+occurred:
+  start: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"
+  basis: recorded
+standpoint: https://github.com/benfortuna
+container: epi_01a1b4b1-8a20-7d43-b6e1-0c9f5a7d3e12
+ordinal: 2
+content:
+  mode: inline
+  media_type: text/markdown
+  derivation: verbatim
+  language: en-AU
+source:
+  author: https://github.com/benfortuna
+timestamp: 2026-11-07T03:24:40Z
+occasion: int_X
+redacted:
+  timestamp: 2026-11-07T06:30:00Z
+  reason: Personal matter; the record is no longer wanted
+  source:
+    author: https://github.com/benfortuna
+  fields: [content.text, label]

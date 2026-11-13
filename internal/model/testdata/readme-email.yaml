@@ -1,0 +1,23 @@
+id: epi_01a1b6d1-1a2b-7c3d-8e4f-5a6b7c8d9e0f
+type: episode
+kind: email
+occurred:
+  start: "2026-11-07T14:24:00+11:00"
+  basis: stated
+standpoint: https://example.com/jane
+content:
+  mode: ref
+  ref: gmail:msg_18f2c3a9b4d5e6f7
+  uid: mid:CAF3x9q@mail.example.com
+  version: "18f2c3a9b4d5e6f7"
+  hash: sha256:9f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708
+  media_type: message/rfc822
+  language: en
+source:
+  author: https://github.com/benfortuna
+  harness: claude
+timestamp: 2026-11-08T01:00:00Z
+source_status:
+  state: gone
+  verified: 2026-11-02T09:00:00Z
+  detected: 2026-11-07T05:50:00Z

@@ -1,0 +1,42 @@
+# Origin: nodelogicau/intentions-cli .goreleaser.yaml @ b72a395454aa
+# (universal binary, desktop bundle and Homebrew cask dropped: follow-ons)
+version: 2
+
+project_name: episodes
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: episodes
+    main: ./cmd/episodes
+    binary: episodes
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/nodelogicau/episodes-cli/internal/cli.version={{ .Version }}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt

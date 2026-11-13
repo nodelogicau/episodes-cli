@@ -1,2 +1,7 @@
-/.idea/
+# Origin: nodelogicau/intentions-cli .gitignore @ b72a395454aa
+/dist/
+*.test
+*.out
+.DS_Store
+.idea/
 /episodes-cli.iml

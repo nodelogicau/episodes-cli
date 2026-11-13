@@ -1,0 +1,18 @@
+id: epi_01a1b6d0-1a2b-7c3d-8e4f-5a6b7c8d9e0f
+type: episode
+kind: event
+occurred:
+  start: "2026-11-07T16:02:00+11:00[Australia/Melbourne]"
+  basis: stated
+standpoint: https://github.com/benfortuna
+label: Budget review with Jane
+content:
+  mode: ref
+  ref: gcal:evt_7q2m4k9d0s1a
+  uid: 7q2m4k9d0s1a@google.com
+  version: "3"
+  media_type: text/calendar
+source:
+  author: https://github.com/benfortuna
+  harness: claude
+timestamp: 2026-11-08T01:00:00Z

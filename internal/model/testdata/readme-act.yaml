@@ -1,0 +1,18 @@
+id: epi_01a1b875-0c28-7e19-a3d5-7c1b9f4e2a60
+type: episode
+kind: activity
+occurred:
+  start: "2026-11-08T09:00:00+11:00[Australia/Melbourne]"
+  end: "2026-11-08T10:30:00+11:00[Australia/Melbourne]"
+  basis: stated
+standpoint: https://github.com/benfortuna
+label: Deep work on the budget draft
+links:
+  - rel: via
+    href: epi_01a1b874-e130-7b2c-9d41-3f6a8e0c5b27
+content:
+  mode: none
+source:
+  author: https://github.com/benfortuna
+  harness: claude
+timestamp: 2026-11-08T00:00:41Z
