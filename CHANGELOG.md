@@ -7,6 +7,11 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **Creating an episode no longer re-encodes the whole index** (#2, change
+  `fast-index-upsert`). When a create opens no month and its id sorts last,
+  its index entry is appended to `index.yaml`'s bytes. The bytes are the
+  same as before, which a property test checks against the full upsert. At
+  20,000 open-month entries a create takes 52 ms, down from 357 ms.
 - **`act` names how an act was attested** (#4, change `act-attestation-flags`).
   `--control` says the person used a dedicated logging control, so no episode
   holds the attestation. It is the caller's statement, which the binary

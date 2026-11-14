@@ -536,8 +536,121 @@ func contains(s []string, v string) bool {
 // upsert applies one create to the index under the lock: it seals any month
 // the new id's month seals, writing each such month's segment from its files
 // with their count, and upserts the new entry into the root. A root that
-// cannot be read is rebuilt from the files instead.
+// cannot be read is rebuilt from the files instead. When nothing seals and
+// the new id sorts last, the entry is appended to the root's bytes without
+// parsing the rest, which gives the same bytes (spliceable).
 func (w *Workspace) upsert(l *Listing, e Entry) error {
+	if !forceFullUpsert {
+		if data, err := os.ReadFile(w.Abs(IndexFile)); err == nil {
+			if tail, ok := spliceable(data, e, l); ok {
+				fastUpserts++
+				return writeAtomic(w.Abs(IndexFile), append(data, tail...))
+			}
+		}
+	}
+	return w.fullUpsert(l, e)
+}
+
+// forceFullUpsert makes every upsert take the full path; tests set it to
+// compare the two paths.
+var forceFullUpsert bool
+
+// fastUpserts counts upserts that took the splice, for tests.
+var fastUpserts int
+
+// entryBytes is one entry exactly as EncodeRoot writes it inside a block
+// sequence of entries.
+func entryBytes(e Entry) ([]byte, error) {
+	one, err := EncodeRoot(&Root{Format: model.Format, Entries: []Entry{e}})
+	if err != nil {
+		return nil, err
+	}
+	_, after, ok := bytes.Cut(one, []byte("\nentries:\n"))
+	if !ok {
+		return nil, fmt.Errorf("index: unexpected encoding of one entry")
+	}
+	return after, nil
+}
+
+var conflictMarkers = [][]byte{[]byte("<<<<<<<"), []byte("======="), []byte(">>>>>>>")}
+
+const entryLead = "\n  - id: "
+
+// spliceable decides, from the root's bytes alone, whether appending e's
+// encoded entry gives exactly what fullUpsert would write, and returns that
+// entry's bytes when it does (design D2 of fast-index-upsert). It parses only
+// the root's head (format and segments), never its entries.
+func spliceable(data []byte, e Entry, l *Listing) ([]byte, bool) {
+	if len(data) == 0 || data[len(data)-1] != '\n' {
+		return nil, false
+	}
+	for _, m := range conflictMarkers {
+		if bytes.HasPrefix(data, m) || bytes.Contains(data, append([]byte("\n"), m...)) {
+			return nil, false
+		}
+	}
+	head, body, ok := bytes.Cut(data, []byte("\nentries:\n"))
+	if !ok || !bytes.HasPrefix(body, []byte(entryLead[1:])) {
+		return nil, false // no entries, or a flow sequence
+	}
+	// The head must be exactly what EncodeRoot writes for its segments.
+	var raw struct {
+		Format   string       `yaml:"format"`
+		Segments []SegmentRef `yaml:"segments"`
+	}
+	if err := yaml.Unmarshal(head, &raw); err != nil || raw.Format != model.Format {
+		return nil, false
+	}
+	canon, err := EncodeRoot(&Root{Format: model.Format, Segments: raw.Segments})
+	if err != nil || !bytes.Equal(append(append([]byte{}, head...), "\nentries: []\n"...), canon) {
+		return nil, false
+	}
+	// Nothing to seal: every sealed month with files already has its segment.
+	listed := map[string]bool{}
+	for _, s := range raw.Segments {
+		listed[s.Path] = true
+	}
+	for d := range placed(l) {
+		if dm, ok := MonthOfName(d); ok && !l.Months.Open(dm) && !listed[SegmentPath(dm)] {
+			return nil, false
+		}
+	}
+	// The first entry is open (so nothing is dropped) and the last sorts
+	// before the new id (so the new entry goes last).
+	first := lineAt(body, len(entryLead)-1)
+	lastAt := bytes.LastIndex(data, []byte(entryLead))
+	if lastAt < 0 {
+		return nil, false
+	}
+	last := lineAt(data, lastAt+len(entryLead))
+	if fm, ok := IDMonth(first); !ok || !l.Months.Open(fm) {
+		return nil, false
+	}
+	if last == "" || last >= e.ID {
+		return nil, false
+	}
+	tail, err := entryBytes(e)
+	if err != nil {
+		return nil, false
+	}
+	return tail, true
+}
+
+// lineAt reads from data at i up to the end of the line.
+func lineAt(data []byte, i int) string {
+	if i > len(data) {
+		return ""
+	}
+	end := bytes.IndexByte(data[i:], '\n')
+	if end < 0 {
+		return ""
+	}
+	return string(data[i : i+end])
+}
+
+// fullUpsert parses the root, seals what the create seals, adds the entry and
+// re-encodes the whole root.
+func (w *Workspace) fullUpsert(l *Listing, e Entry) error {
 	root, _, err := w.ReadRoot()
 	if err != nil {
 		_, err := w.Rebuild()

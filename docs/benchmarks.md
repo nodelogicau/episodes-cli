@@ -7,11 +7,29 @@ them with:
 go test ./internal/store ./internal/query -run '^$' -bench . -benchtime 10x
 ```
 
+## 2026-11-14, after `fast-index-upsert` (#2)
+
+| Benchmark | Target | Before | After |
+|---|---|---|---|
+| `BenchmarkCreate20k` | under 100 ms | 357 ms | **52 ms** |
+
+A create that opens no month and whose id sorts last (almost every create)
+now appends its one encoded entry to the root's bytes instead of parsing and
+re-encoding all 20,000 entries. The full upsert still runs whenever a month
+seals or the root's head or tail is not in the form this binary writes, and
+a property test checks that both paths write identical bytes. A CPU profile
+per create shows about 14 ms in the directory listing and 14 ms in `Create`
+itself: about 4 ms checking the 4 MB root's bytes, 3 ms writing it
+atomically, and the rest the episode write. The remainder of the 52 ms is
+waiting on the file system, mostly the two `fsync`s. The directory listing
+is now the largest CPU cost; listing only the newest month would remove most
+of it.
+
 ## 2026-11-14, v0.1.0 (Apple M2 Pro, macOS, Go 1.26.7, APFS)
 
 | Benchmark | What it measures | Target | Result |
 |---|---|---|---|
-| `BenchmarkCreate20k` | One `Create` (lock, directory listing, exclusive write, index upsert) into a workspace whose open months hold 20,000 entries | under 100 ms | **357 ms**: misses |
+| `BenchmarkCreate20k` | One `Create` (lock, directory listing, exclusive write, index upsert) into a workspace whose open months hold 20,000 entries | under 100 ms | **357 ms**: missed (fixed by #2, above) |
 | `BenchmarkDuplicateLookup20k` | `record ref`'s duplicate lookup (list, parse every file, match `standpoint`, `media_type`, `uid`) over 20,000 reference episodes | follow-on if over 500 ms | **815 ms**: over |
 
 ### `Create`
