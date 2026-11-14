@@ -7,6 +7,22 @@ them with:
 go test ./internal/store ./internal/query -run '^$' -bench . -benchtime 10x
 ```
 
+## 2026-11-14, after `uid-cache` (#3)
+
+| Benchmark | Target | Before | After |
+|---|---|---|---|
+| `BenchmarkDuplicateLookup20k` (cache built) | under 100 ms | 815 ms | **52 ms** |
+| `BenchmarkDuplicateLookup20kCold` (no cache) | same result as a full parse | 815 ms | 922 ms |
+| `BenchmarkDuplicateLookup20kFullParse` (the old lookup, for comparison) | | | 895 ms |
+
+Each warm iteration is a fresh process's view: open the workspace, list it,
+read and decode the cache (about 1 MB of JSON for 20,000 episodes),
+reconcile the cached names with the listing, and verify the one candidate
+against its file. A profile splits the time roughly evenly between the
+directory listing, decoding the cache, and reconciling names. A cold lookup
+still parses every file once and then writes the cache, so the first
+lookup in a fresh clone costs what every lookup used to.
+
 ## 2026-11-14, after `fast-index-upsert` (#2)
 
 | Benchmark | Target | Before | After |
@@ -30,7 +46,7 @@ of it.
 | Benchmark | What it measures | Target | Result |
 |---|---|---|---|
 | `BenchmarkCreate20k` | One `Create` (lock, directory listing, exclusive write, index upsert) into a workspace whose open months hold 20,000 entries | under 100 ms | **357 ms**: missed (fixed by #2, above) |
-| `BenchmarkDuplicateLookup20k` | `record ref`'s duplicate lookup (list, parse every file, match `standpoint`, `media_type`, `uid`) over 20,000 reference episodes | follow-on if over 500 ms | **815 ms**: over |
+| `BenchmarkDuplicateLookup20k` | `record ref`'s duplicate lookup (list, parse every file, match `standpoint`, `media_type`, `uid`) over 20,000 reference episodes | follow-on if over 500 ms | **815 ms**: over (fixed by #3, above) |
 
 ### `Create`
 

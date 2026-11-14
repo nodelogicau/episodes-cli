@@ -104,6 +104,8 @@ is required. `--now` (or `EPISODES_NOW`) is for tests only. It fixes the
 recording timestamp, the minting instant and any `occurred` the verb defaults
 to now.
 
+`EPISODES_CACHE_DIR` overrides where derived caches are kept (see below).
+
 ## Exit codes
 
 | Code | Meaning |
@@ -149,6 +151,24 @@ is a different matter:
 
 Redaction removes text from the current file and from what this tool reads
 and recalls. It does not remove it from git history or from existing clones.
+
+## The uid cache
+
+`record ref --uid` (or `--message-id`) refuses a second reference episode
+with the same standpoint, media type and uid. `uid` is not in the index, so
+the lookup keeps a cache of it outside the workspace:
+`<user cache dir>/episodes/uid/<workspace.id>-<hash>.json` (on macOS
+`~/Library/Caches`, on Linux `$XDG_CACHE_HOME` or `~/.cache`), or under
+`$EPISODES_CACHE_DIR` when that is set. The hash is of the workspace's
+absolute path, so two clones keep separate caches.
+
+The cache is never trusted over the files. Each lookup parses the files it
+hasn't seen and drops the names that are gone, and every match is checked
+against its file before a write is refused. Nothing is written in the
+workspace. Deleting the cache is always safe: the next lookup rebuilds it
+from the files. The one thing it can miss is a file edited by hand to gain a
+matching uid, which breaks accumulation anyway, and `validate`, which never
+uses the cache, reports the resulting `possible_duplicate`.
 
 ## Further reading
 

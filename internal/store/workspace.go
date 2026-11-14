@@ -55,6 +55,9 @@ type Workspace struct {
 	FoundBy string
 	// Pointer is the .episodes file followed, when FoundBy is pointer.
 	Pointer string
+
+	// uids is the uid cache, once this process has loaded it.
+	uids *uidCache
 }
 
 // Discover locates a workspace: explicit dir, then $EPISODES_WORKSPACE, then

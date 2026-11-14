@@ -7,6 +7,15 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **`record ref`'s duplicate lookup reads a uid cache** (#3, change
+  `uid-cache`). The cache is kept outside the workspace, in the user cache
+  directory (or `$EPISODES_CACHE_DIR`), keyed by `workspace.id` and the
+  workspace's path. Each lookup reconciles it with the directory listing,
+  parsing only files it has not seen, and checks every hit against its
+  file, so a stale cache never refuses wrongly. A cache that can't be read
+  is rebuilt, and one that can't be written is skipped. At 20,000 reference
+  episodes the lookup takes 52 ms, down from 815 ms. `validate` still
+  parses every file.
 - **Creating an episode no longer re-encodes the whole index** (#2, change
   `fast-index-upsert`). When a create opens no month and its id sorts last,
   its index entry is appended to `index.yaml`'s bytes. The bytes are the

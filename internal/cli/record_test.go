@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -9,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/nodelogicau/episodes-cli/internal/store"
 )
 
 // --- recording -------------------------------------------------------------
@@ -584,5 +587,79 @@ func TestChildlessConversationContainer(t *testing.T) {
 	// The act rules apply: Ada's own container passes them.
 	if finding(rep, "act_standpoint_mismatch") != nil {
 		t.Fatal(rep)
+	}
+}
+
+// --- the uid cache (uid-cache, #3) ------------------------------------------
+
+func TestDuplicateAfterRedactedUID(t *testing.T) {
+	e := newEnv(t)
+	first := e.email(ada, "a@b", "2026-11-08T00:00:00Z")
+	if first.code != 0 {
+		t.Fatal(first)
+	}
+	id := first.json(t)["id"].(string)
+	// The cache now lists id under mid:a@b; the redaction removes it from the file.
+	if r := e.email(ada, "a@b", "2026-11-08T00:01:00Z"); r.code != 2 {
+		t.Fatal(r)
+	}
+	e.ok("redact", id, "--fields", "content.uid", "--reason", "Withdrawn", "--now", "2026-11-08T00:02:00Z")
+	if r := e.email(ada, "a@b", "2026-11-08T00:03:00Z"); r.code != 0 {
+		t.Fatalf("a redacted uid still counted as a duplicate: %+v", r)
+	}
+}
+
+func TestDuplicateWithUnwritableCache(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(blocker, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(store.EnvCacheDir, blocker)
+	e := newEnv(t)
+	first := e.email(ada, "a@b", "2026-11-08T00:00:00Z")
+	if first.code != 0 {
+		t.Fatal(first)
+	}
+	r := e.email(ada, "a@b", "2026-11-08T00:01:00Z")
+	if r.code != 2 || r.errCode(t) != "duplicate" || !strings.Contains(r.err, first.json(t)["id"].(string)) {
+		t.Fatalf("%+v", r)
+	}
+	if r := e.email(jane, "a@b", "2026-11-08T00:02:00Z"); r.code != 0 {
+		t.Fatal(r)
+	}
+}
+
+func TestCacheWritesNothingInWorkspace(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv(store.EnvCacheDir, cache)
+	e := newEnv(t)
+	var ids []string
+	for i, now := range []string{"2026-11-08T00:00:00Z", "2026-11-08T00:01:00Z"} {
+		r := e.email(ada, fmt.Sprintf("m%d@b", i), now)
+		if r.code != 0 {
+			t.Fatal(r)
+		}
+		ids = append(ids, r.json(t)["id"].(string))
+	}
+	var extra []string
+	_ = filepath.Walk(e.dir, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		rel, _ := filepath.Rel(e.dir, p)
+		rel = filepath.ToSlash(rel)
+		switch {
+		case rel == "episodes.yaml", rel == "index.yaml", rel == ".episodes.lock":
+		case strings.HasPrefix(rel, "episodes/") && (strings.Contains(rel, ids[0]) || strings.Contains(rel, ids[1])):
+		default:
+			extra = append(extra, rel)
+		}
+		return nil
+	})
+	if len(extra) > 0 {
+		t.Fatalf("unexpected files in the workspace: %v", extra)
+	}
+	if m, _ := filepath.Glob(filepath.Join(cache, "episodes", "uid", "*.json")); len(m) != 1 {
+		t.Fatalf("cache files: %v", m)
 	}
 }

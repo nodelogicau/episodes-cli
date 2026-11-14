@@ -29,7 +29,15 @@ func TestMain(m *testing.M) {
 	for _, k := range []string{"EPISODES_WORKSPACE", "EPISODES_AUTHOR", "EPISODES_HARNESS", "EPISODES_MODEL", "EPISODES_NOW", "EPISODES_ZONE"} {
 		_ = os.Unsetenv(k)
 	}
-	os.Exit(m.Run())
+	// Never touch the real user cache directory.
+	cache, err := os.MkdirTemp("", "episodes-cache-")
+	if err != nil {
+		panic(err)
+	}
+	_ = os.Setenv(store.EnvCacheDir, cache)
+	code := m.Run()
+	_ = os.RemoveAll(cache)
+	os.Exit(code)
 }
 
 type env struct {

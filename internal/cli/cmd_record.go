@@ -289,7 +289,11 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 					return nil, nil, err
 				}
 				if uid != "" && !allowDup {
-					if ids := query.Duplicates(c.ws.LoadAll(c.l), ep.Standpoint, mediaType, uid); len(ids) > 0 {
+					var cands []store.Loaded
+					for _, f := range c.ws.UIDCandidates(c.l, ep.Standpoint, mediaType, uid) {
+						cands = append(cands, c.ws.LoadFile(f))
+					}
+					if ids := query.Duplicates(cands, ep.Standpoint, mediaType, uid); len(ids) > 0 {
 						return nil, nil, dupErr("duplicate: %s already record%s uid %s (%s) from standpoint %s; cite the existing episode, or pass --allow-duplicate for a distinct occurrence that shares the uid",
 							strings.Join(ids, ", "), map[bool]string{true: "s", false: ""}[len(ids) == 1], uid, mediaType, ep.Standpoint)
 					}
@@ -298,6 +302,7 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 				if err != nil {
 					return nil, nil, err
 				}
+				c.ws.NoteUID(ep)
 				return written(ep, rel), func(w io.Writer) { fmt.Fprintf(w, "Recorded %s\n  %s\n", ep.ID, rel) }, nil
 			})
 		}),
