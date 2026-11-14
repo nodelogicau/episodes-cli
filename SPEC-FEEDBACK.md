@@ -144,15 +144,23 @@ attestation, "a rule for writers" that no validator can check. When the
 attestation is an episode in the workspace the act names it with `via`; a
 dedicated control with no conversation has no `via`.
 
-**What we decided.** When the resolved source carries `harness`, `act`
-requires `--via`. A harness that records an act must already have recorded
-the turn in which the person asked, and must name it. A person acting
-through a control with no harness may omit it. This is stricter than the
-draft.
+**What we decided.** v0.1.0 required `--via` whenever the resolved source
+carried `harness`. That was wrong (episodes-cli#4): a harness can come from
+`EPISODES_HARNESS` or `defaults.source.harness` when a person logs their own
+act, and a dedicated control built as a connector has no turn to cite,
+although the draft lets it omit `via`. We now follow the review on
+[nodelogicau/episodes#25](https://github.com/nodelogicau/episodes/issues/25#issuecomment-6868142537):
+the rule depends on how the act was attested. `act` takes `--via <episode>`
+(the attestation is that episode) or `--control` (a dedicated control, so no
+episode holds it). With a harness and neither, it is refused. With no harness,
+neither is required. `--control` is the caller's statement and cannot be
+checked, and nothing about it is written to the file.
 
-**Proposal.** A writer whose `source.harness` is present MUST link `via` to
-the attesting episode. It turns an uncheckable rule into one a store can
-enforce.
+**Proposal.** As in the #25 review: when the attestation was made in an
+episode the writer recorded, which includes every attestation made in
+conversation, a self-attested act MUST link `via` that episode. Decide it
+together with #21 (an explicit act marker would let `--via` and `--control`
+be recorded) and #34.
 
 ## 8. The validator needs a registry snapshot
 

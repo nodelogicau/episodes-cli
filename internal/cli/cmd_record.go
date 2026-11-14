@@ -466,19 +466,34 @@ func (a *app) actCmd() *cobra.Command {
 	var f episodeFlags
 	var act actFlags
 	var via string
+	var control bool
 	cmd := &cobra.Command{
-		Use:   "act --occurred V --basis stated|inferred [--via epi_T]",
+		Use:   "act --occurred V --basis stated|inferred [--via epi_T | --control]",
 		Short: "Record a self-attested act: something the author did that left no record, on their explicit request",
 		Long: `Record a self-attested act. Its standpoint is the resolved source.author, its
 content is {mode: none}, and its time is when the act took place. Record one
 only when the person explicitly asks for it, never from what is inferred.
-When a harness records it, --via must name the episode (usually the turn)
-in which the person asked. An act still going on is recorded with its start
-and no --end.`,
+
+Say how it was attested. --via names the episode (usually the turn) in which
+the person asked. --control says the person used a dedicated control whose
+only purpose is to log the act, so no episode holds the attestation; this is
+your statement, and the binary cannot check it. When a harness is resolved
+(from --harness, EPISODES_HARNESS or defaults.source.harness), one of the two
+is required. An act still going on is recorded with its start and no --end.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			if f.language != "" {
 				return refusedErr("language_on_none: a self-attested act has content mode none, which carries no language")
+			}
+			if via != "" && control {
+				return usageErr("use either --via (the attestation is that episode) or --control (a dedicated control; no episode holds it), not both")
+			}
+			attestation := "author"
+			switch {
+			case via != "":
+				attestation = "via"
+			case control:
+				attestation = "control"
 			}
 			return a.write(act, func(c *writeCtx) (map[string]any, func(io.Writer), error) {
 				if c.src.Author == "" {
@@ -487,8 +502,8 @@ and no --end.`,
 				if f.standpoint != "" && f.standpoint != c.src.Author {
 					return nil, nil, refusedErr("act_standpoint_mismatch: a self-attested act is the author's own (%s); %s's act is recorded in the episode in which they say it", c.src.Author, f.standpoint)
 				}
-				if c.src.Harness != "" && via == "" {
-					return nil, nil, refusedErr("via: a harness records an act only on the person's explicit attestation; record the attesting turn first and name it with --via")
+				if c.src.Harness != "" && attestation == "author" {
+					return nil, nil, refusedErr("via: harness %s is recording this act, so say how the person attested it: --via <episode> when they asked in an episode (record the attesting turn first), or --control when they used a dedicated control to log it", c.src.Harness)
 				}
 				if f.occ.basis == model.BasisRecorded {
 					return nil, nil, refusedErr("basis: an act's time is stated (the person gave it) or inferred (worked out), not recorded")
@@ -522,7 +537,11 @@ and no --end.`,
 				if err != nil {
 					return nil, nil, err
 				}
-				return written(ep, rel), func(w io.Writer) { fmt.Fprintf(w, "Recorded act %s\n  %s\n", ep.ID, rel) }, nil
+				out := written(ep, rel)
+				out["attestation"] = attestation
+				return out, func(w io.Writer) {
+					fmt.Fprintf(w, "Recorded act %s (attested by %s)\n  %s\n", ep.ID, attestation, rel)
+				}, nil
 			})
 		}),
 	}
@@ -530,6 +549,7 @@ and no --end.`,
 	cmd.Flags().Lookup("standpoint").Usage = "refused unless it equals the resolved source.author (default: that author)"
 	addOccurredFlags(cmd, &f.occ, true)
 	addActFlags(cmd, &act)
-	cmd.Flags().StringVar(&via, "via", "", "the episode in which the act was attested, such as the turn asking for it (required when a harness records it)")
+	cmd.Flags().StringVar(&via, "via", "", "the episode in which the act was attested, such as the turn asking for it (a harness gives this or --control)")
+	cmd.Flags().BoolVar(&control, "control", false, "the act was logged from a dedicated control and no episode holds the attestation; the caller's statement, which the binary cannot check")
 	return cmd
 }

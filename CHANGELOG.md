@@ -3,6 +3,20 @@
 All notable changes to `episodes` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **`act` names how an act was attested** (#4, change `act-attestation-flags`).
+  `--control` says the person used a dedicated logging control, so no episode
+  holds the attestation. It is the caller's statement, which the binary
+  cannot check, and it can't be combined with `--via`. A harness, whether
+  from `--harness`, `EPISODES_HARNESS` or `defaults.source.harness`, must give
+  `--via` or `--control`. Before, it always needed `--via`, which refused a
+  person's own act in a workspace with a default harness. The JSON result
+  carries `attestation` (`via`, `control` or `author`). The episode file is
+  unchanged.
+
 ## [0.1.0] - unreleased
 
 The foundation (`bootstrap-episodes-cli`): a complete, byte-stable writer for

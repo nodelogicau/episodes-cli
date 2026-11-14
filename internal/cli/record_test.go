@@ -459,9 +459,12 @@ func TestDeepWorkLoggedAfterTheFact(t *testing.T) {
 	e := newEnv(t, "--zone", mel)
 	c, turn := e.start("2026-11-07T23:30:00Z")
 	_ = c
-	id := e.ok("act", "--occurred", "2026-11-08T09:00:00+11:00[Australia/Melbourne]", "--end", "2026-11-08T10:30:00+11:00[Australia/Melbourne]",
-		"--basis", "stated", "--label", "Deep work on the budget draft", "--via", turn, "--now", "2026-11-07T23:31:00Z")["id"].(string)
-	f := e.file(id)
+	m := e.ok("act", "--occurred", "2026-11-08T09:00:00+11:00[Australia/Melbourne]", "--end", "2026-11-08T10:30:00+11:00[Australia/Melbourne]",
+		"--basis", "stated", "--label", "Deep work on the budget draft", "--via", turn, "--now", "2026-11-07T23:31:00Z")
+	if m["attestation"] != "via" {
+		t.Fatal(m)
+	}
+	f := e.file(m["id"].(string))
 	for _, want := range []string{"kind: activity", "content:\n  mode: none\n", "links:\n  - rel: via\n    href: " + turn, "standpoint: " + ada, "author: " + ada} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("missing %q:\n%s", want, f)
@@ -481,14 +484,79 @@ func TestViaAssistantsTurnRefused(t *testing.T) {
 	e.fails(2, "act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--via", assistant, "--now", "2026-11-07T03:02:00Z")
 }
 
-func TestHarnessWithoutVia(t *testing.T) {
+// self-attested-acts: the attestation is named.
+func TestHarnessWithNeitherFlag(t *testing.T) {
 	e := newEnv(t)
-	_, msg := e.fails(2, "act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--harness", "claude")
-	if !strings.Contains(msg, "attesting turn first") {
+	_, msg := e.fails(2, "act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--harness", "claude", "--now", "2026-11-07T03:00:00Z")
+	if !strings.Contains(msg, "--via") || !strings.Contains(msg, "--control") {
 		t.Fatal(msg)
 	}
-	// A person's control: an author and no harness, no via.
-	e.ok("act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--now", "2026-11-07T03:00:00Z")
+}
+
+func TestDefaultsHarnessWithControl(t *testing.T) {
+	e := newEnv(t, "--harness", "claude")
+	args := []string{"act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--now", "2026-11-07T03:00:00Z"}
+	e.fails(2, args...)
+	m := e.ok(append(args, "--control")...)
+	f := e.file(m["id"].(string))
+	if m["attestation"] != "control" || strings.Contains(f, "links:") || !strings.Contains(f, "harness: claude") {
+		t.Fatal(m, f)
+	}
+}
+
+func TestConnectorWithControl(t *testing.T) {
+	e := newEnv(t)
+	m := e.ok("act", "--occurred", "2026-11-07T07:00:00+11:00", "--basis", "stated", "--kind", "run", "--harness", "run-logger", "--control", "--now", "2026-11-07T03:00:00Z")
+	if !strings.Contains(e.file(m["id"].(string)), "  harness: run-logger\n") {
+		t.Fatal(e.file(m["id"].(string)))
+	}
+}
+
+func TestViaAndControlRefused(t *testing.T) {
+	e := newEnv(t)
+	_, turn := e.start("2026-11-07T03:00:00Z")
+	code, _ := e.fails(2, "act", "--occurred", "2026-11-07T13:00:00+11:00", "--basis", "stated", "--via", turn, "--control", "--now", "2026-11-07T03:01:00Z")
+	if code != "usage" {
+		t.Fatal(code)
+	}
+}
+
+func TestPersonsOwnAct(t *testing.T) {
+	e := newEnv(t)
+	m := e.ok("act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--now", "2026-11-07T03:00:00Z")
+	if m["attestation"] != "author" {
+		t.Fatal(m)
+	}
+}
+
+// self-attested-acts: a control writes no marker.
+func TestControlWritesNoMarker(t *testing.T) {
+	strip := func(f string) string {
+		var out []string
+		inSource := false
+		for _, line := range strings.Split(f, "\n") {
+			switch {
+			case strings.HasPrefix(line, "id: "):
+				continue
+			case line == "source:":
+				inSource = true
+				continue
+			case inSource && strings.HasPrefix(line, "  "):
+				continue
+			}
+			inSource = false
+			out = append(out, line)
+		}
+		return strings.Join(out, "\n")
+	}
+	args := []string{"act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--label", "Run", "--now", "2026-11-07T03:00:00Z"}
+	a := newEnv(t)
+	plain := a.file(a.ok(args...)["id"].(string))
+	b := newEnv(t)
+	ctl := b.file(b.ok(append(args, "--harness", "run-logger", "--control")...)["id"].(string))
+	if strip(plain) != strip(ctl) || strings.Contains(ctl, "links:") {
+		t.Fatalf("--control changed the file:\n%s\n---\n%s", plain, ctl)
+	}
 }
 
 func TestActWithMismatchedStandpointInvalid(t *testing.T) {
