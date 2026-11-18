@@ -7,6 +7,15 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **Redacting `content.ref` also redacts `uid`, `version`, `hash` and
+  `links`** (#12, upstream nodelogicau/episodes#37). Each of these could
+  lead back to the content. `redact` adds whichever the episode carries and
+  names them in its result (`added`). It does the same on any redaction of
+  an episode whose earlier block already lists `content.ref`, which repairs
+  older redactions. `validate` reports `redaction_incomplete` for each field
+  left behind. Redacting `content.uid` now deletes it from the uid cache,
+  and a lookup that finds a cached uid its file no longer carries (a
+  redaction merged in) deletes it too (nodelogicau/episodes#18).
 - **A stated time may be up to five minutes ahead of `timestamp`** (#13,
   upstream nodelogicau/episodes#22). Mail whose `Date` header runs slightly
   fast can now be recorded, and the time is written as stated. Beyond five

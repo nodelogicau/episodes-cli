@@ -467,4 +467,11 @@ func (c *checker) redacted(e *Episode) {
 			c.err("redaction_field_present", f, "redacted.fields lists %s, and the file still carries it", f)
 		}
 	}
+	if r.Lists("content.ref") {
+		for _, f := range RefCompanions {
+			if e.CarriesPath(f) && !r.Lists(f) {
+				c.err("redaction_incomplete", f, "redacted.fields lists content.ref, and the file still carries %s, which can lead back to the content; redact it too (`episodes redact %s --fields %s`)", f, e.ID, f)
+			}
+		}
+	}
 }

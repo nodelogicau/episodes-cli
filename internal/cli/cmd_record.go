@@ -291,7 +291,13 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 				if uid != "" && !allowDup {
 					var cands []store.Loaded
 					for _, f := range c.ws.UIDCandidates(c.l, ep.Standpoint, mediaType, uid) {
-						cands = append(cands, c.ws.LoadFile(f))
+						ld := c.ws.LoadFile(f)
+						if ld.Err == nil && ld.Episode != nil && ld.Episode.Content.UID != uid {
+							// The file no longer carries the uid the cache
+							// derived from it: a redaction, perhaps merged in.
+							c.ws.ForgetUID(f.ID)
+						}
+						cands = append(cands, ld)
 					}
 					if ids := query.Duplicates(cands, ep.Standpoint, mediaType, uid); len(ids) > 0 {
 						return nil, nil, dupErr("duplicate: %s already record%s uid %s (%s) from standpoint %s; cite the existing episode, or pass --allow-duplicate for a distinct occurrence that shares the uid",

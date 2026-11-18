@@ -216,3 +216,108 @@ func TestPathCollisionExit1(t *testing.T) {
 		t.Fatalf("exit %d", ee.Code)
 	}
 }
+
+// --- redaction completeness (#12) --------------------------------------------
+
+// cacheText is everything the uid cache holds on disk.
+func cacheText(t *testing.T, dir string) string {
+	t.Helper()
+	m, _ := filepath.Glob(filepath.Join(dir, "episodes", "uid", "*.json"))
+	var b strings.Builder
+	for _, p := range m {
+		data, _ := os.ReadFile(p)
+		b.Write(data)
+	}
+	return b.String()
+}
+
+func TestRedactRefTakesCompanions(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv(store.EnvCacheDir, cache)
+	e := newEnv(t)
+	note := e.note("2026-11-08T00:00:00Z")
+	id := e.email(ada, "secret@b", "2026-11-08T00:01:00Z", "--version", "v3",
+		"--hash", "sha256:"+strings.Repeat("ab", 32), "--link", "related="+note).json(t)["id"].(string)
+	if !strings.Contains(cacheText(t, cache), "secret@b") {
+		t.Fatal("cache not primed")
+	}
+	m := e.ok("redact", id, "--fields", "content.ref", "--reason", "moved", "--now", "2026-11-08T01:00:00Z")
+	added := fmt.Sprint(m["added"])
+	if added != "[content.hash content.uid content.version links]" {
+		t.Fatal(m)
+	}
+	f := e.file(id)
+	for _, gone := range []string{"gmail:", "secret@b", "v3", "sha256:", note} {
+		if strings.Contains(f, gone) {
+			t.Fatalf("%q left behind:\n%s", gone, f)
+		}
+	}
+	if rep, code := e.validate("2026-11-09T00:00:00Z"); code != 0 {
+		t.Fatal(rep)
+	}
+	// The derived value is deleted, not just ignored.
+	if strings.Contains(cacheText(t, cache), "secret@b") {
+		t.Fatal("redacted uid still in the cache")
+	}
+}
+
+func TestRedactRefAlone(t *testing.T) {
+	e := newEnv(t)
+	id := e.doc("2026-11-08T00:00:00Z")
+	m := e.ok("redact", id, "--fields", "content.ref", "--reason", "moved", "--now", "2026-11-08T01:00:00Z")
+	if _, ok := m["added"]; ok || fmt.Sprint(m["redacted"].(map[string]any)["fields"]) != "[content.ref]" {
+		t.Fatal(m)
+	}
+}
+
+// A file redacted before the rule, still carrying uid and hash: validate
+// names each field left behind, and a second redaction repairs it.
+func TestIncompleteRefRedactionRepaired(t *testing.T) {
+	e := newEnv(t)
+	id := e.email(ada, "old@b", "2026-11-08T00:00:00Z", "--hash", "sha256:"+strings.Repeat("cd", 32)).json(t)["id"].(string)
+	f := e.file(id)
+	i := strings.Index(f, "  ref: ")
+	f = f[:i] + f[i+strings.Index(f[i:], "\n")+1:]
+	f += "redacted:\n  timestamp: \"2026-11-08T01:00:00Z\"\n  reason: moved\n  source:\n    author: " + ada + "\n  fields:\n    - content.ref\n"
+	e.put(id, f)
+	rep, code := e.validate("2026-11-09T00:00:00Z")
+	var left []string
+	for _, x := range rep["findings"].([]any) {
+		if fd := x.(map[string]any); fd["code"] == "redaction_incomplete" {
+			left = append(left, fd["field"].(string))
+		}
+	}
+	if code != 4 || strings.Join(left, ",") != "content.hash,content.uid" {
+		t.Fatal(rep)
+	}
+	e.ok("redact", id, "--fields", "content.uid", "--reason", "complete the earlier redaction", "--now", "2026-11-08T02:00:00Z")
+	if rep, code := e.validate("2026-11-09T00:00:00Z"); code != 0 {
+		t.Fatal(rep)
+	}
+}
+
+// A redaction merged in from another clone: the cache still holds the uid,
+// the next lookup finds the file no longer carries it, and deletes it.
+func TestMergedRedactionClearsCache(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv(store.EnvCacheDir, cache)
+	e := newEnv(t)
+	id := e.email(ada, "merged@b", "2026-11-08T00:00:00Z").json(t)["id"].(string)
+	f := e.file(id)
+	for _, key := range []string{"  ref: ", "  uid: "} {
+		i := strings.Index(f, key)
+		f = f[:i] + f[i+strings.Index(f[i:], "\n")+1:]
+	}
+	f += "redacted:\n  timestamp: \"2026-11-08T01:00:00Z\"\n  reason: moved\n  source:\n    author: " + ada + "\n  fields:\n    - content.ref\n    - content.uid\n"
+	e.put(id, f)
+	if !strings.Contains(cacheText(t, cache), "merged@b") {
+		t.Fatal("cache should still hold the uid before the next lookup")
+	}
+	if r := e.email(ada, "merged@b", "2026-11-08T02:00:00Z"); r.code != 0 {
+		t.Fatal(r)
+	}
+	// Only the new episode's uid remains.
+	if n := strings.Count(cacheText(t, cache), "merged@b"); n != 1 {
+		t.Fatalf("cache holds the uid %d times", n)
+	}
+}

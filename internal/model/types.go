@@ -211,6 +211,12 @@ var Redactable = []string{
 	"content.uid", "content.version", "label", "links", "participants", "place",
 }
 
+// RefCompanions are the paths that could each lead back to referenced
+// content: a redaction that lists content.ref lists each of these the
+// episode carries too, so the tombstone no longer says where the content is
+// (#12, upstream redaction-completeness). Each stays redactable on its own.
+var RefCompanions = []string{"content.hash", "content.uid", "content.version", "links"}
+
 // IsRedactable reports whether path is in the closed set.
 func IsRedactable(path string) bool {
 	for _, p := range Redactable {

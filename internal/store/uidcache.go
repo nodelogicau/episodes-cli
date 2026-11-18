@@ -230,6 +230,30 @@ func (w *Workspace) NoteUID(ep *model.Episode) {
 	c.save()
 }
 
+// ForgetUID drops the cached uid of episode id, keeping its name so the file
+// is not parsed again. redact calls it when it removes content.uid, and the
+// duplicate lookup calls it for a candidate whose file no longer carries the
+// cached uid (a redaction merged in from elsewhere): a value derived from a
+// redacted field is deleted, not kept (#12). Like every cache write, it
+// never fails.
+func (w *Workspace) ForgetUID(id string) {
+	c := w.loadUIDCache()
+	d := c.Dirs[Shard(id)]
+	if d == nil {
+		return
+	}
+	refs := d.Refs[:0]
+	for _, r := range d.Refs {
+		if r.ID == id {
+			c.changed = true
+			continue
+		}
+		refs = append(refs, r)
+	}
+	d.Refs = refs
+	c.save()
+}
+
 // save writes the cache when it changed: a temporary file renamed over it,
 // without fsync, since the cache is disposable (D5). Every error is dropped.
 func (c *uidCache) save() {

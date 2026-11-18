@@ -89,7 +89,7 @@ episodes validate
 | `conversation turn <container>` | Append a turn. It is given the next ordinal under the lock. `--standpoint` is required on every turn. |
 | `act` | Record a self-attested act: its standpoint is `source.author` and its content is `{mode: attested}`, a mode that carries no other key. When a harness records it, it must say how the person attested it: `--via <episode>` (the turn where they asked) or `--control` (a dedicated logging control; the caller's statement, which the binary cannot check). |
 | `observe <id>` | Write `source_status` on a reference episode, either from `--state` or by hashing `--content-file`, or by comparing `--version`. |
-| `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. It is irreversible and never cascades, and every result says that git history still holds the text. |
+| `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. Redacting `content.ref` also removes `content.uid`, `content.version`, `content.hash` and `links`, so the tombstone no longer says where the content is, and the result names what it added. It is irreversible and never cascades, and every result says that git history still holds the text. |
 | `show <id> [--children]` | Print an episode, located by the path its id derives (the index is never read). |
 | `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. |
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
@@ -182,6 +182,12 @@ workspace. Deleting the cache is always safe: the next lookup rebuilds it
 from the files. The one thing it can miss is a file edited by hand to gain a
 matching uid, which breaks accumulation anyway, and `validate`, which never
 uses the cache, reports the resulting `possible_duplicate`.
+
+A redacted uid is deleted from the cache, not just ignored. `redact` removes
+it when it removes `content.uid`. A lookup that finds a cached uid its file
+no longer carries, after a redaction merged in from another clone, removes
+it then. Until that lookup runs, the uid stays in this machine's cache
+file. `episodes` doesn't keep any other value derived from episode content.
 
 ## Further reading
 
