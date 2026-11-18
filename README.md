@@ -104,6 +104,19 @@ is required. `--now` (or `EPISODES_NOW`) is for tests only. It fixes the
 recording timestamp, the minting instant and any `occurred` the verb defaults
 to now.
 
+`--occurred` and `--end` take an RFC 9557 value, which is put in the form a
+writer writes, with a warning naming anything dropped:
+
+- an elective suffix other than the zone (`[u-ca=gregory]`) is dropped;
+- a zone whose offset contradicts the one given, or a zone this build has no
+  rules for, is left out, and the offset is written alone;
+- a critical flag (`[!…]`) is honoured: on the zone, the value is written
+  without the flag when the offset agrees, and refused when it does not or
+  the zone is unknown; on any other suffix, the value is refused.
+
+`--zone`, `EPISODES_ZONE` and `defaults.zone` apply only to a time the verb
+takes from the clock, never to a value you supply.
+
 `EPISODES_CACHE_DIR` overrides where derived caches are kept (see below).
 
 ## Exit codes

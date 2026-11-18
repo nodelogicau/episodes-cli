@@ -202,7 +202,7 @@ func (a *app) recordInlineCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				occ, err := buildOccurred(f.occ, true, c.now, zone)
+				occ, err := buildOccurred(f.occ, true, c.now, zone, &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -276,7 +276,7 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 				}
 			}
 			return a.write(act, func(c *writeCtx) (map[string]any, func(io.Writer), error) {
-				occ, err := buildOccurred(f.occ, false, c.now, "")
+				occ, err := buildOccurred(f.occ, false, c.now, "", &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -347,7 +347,7 @@ func (a *app) conversationStartCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				occ, err := buildOccurred(f.occ, true, c.now, zone)
+				occ, err := buildOccurred(f.occ, true, c.now, zone, &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -432,7 +432,7 @@ func (a *app) conversationTurnCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				occ, err := buildOccurred(f.occ, true, c.now, zone)
+				occ, err := buildOccurred(f.occ, true, c.now, zone, &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -513,7 +513,7 @@ is required. An act still going on is recorded with its start and no --end.`,
 				if f.occ.basis == model.BasisRecorded {
 					return nil, nil, refusedErr("basis: an act's time is stated (the person gave it) or inferred (worked out), not recorded")
 				}
-				occ, err := buildOccurred(f.occ, false, c.now, "")
+				occ, err := buildOccurred(f.occ, false, c.now, "", &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}

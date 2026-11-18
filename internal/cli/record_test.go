@@ -401,11 +401,37 @@ func indexOf(s []string, v string) int {
 	return -1
 }
 
+// #14: a zone that contradicts the offset is left out, and the offset is
+// written alone, wherever the zone came from; with the critical flag the
+// value is refused, naming the offset the zone expects.
 func TestWrongOffsetForZone(t *testing.T) {
 	e := newEnv(t)
-	_, msg := e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+10:00[Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
-	if !strings.Contains(msg, "+11:00") {
+	m := e.ok("act", "--occurred", "2026-11-07T14:24:00+10:00[Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if f := e.file(m["id"].(string)); !strings.Contains(f, `start: "2026-11-07T14:24:00+10:00"`+"\n") {
+		t.Fatal(f)
+	}
+	if w, _ := m["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "+11:00") {
+		t.Fatal(m)
+	}
+	_, msg := e.fails(2, "act", "--occurred", "2026-01-15T10:00:00+10:00[!Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if !strings.Contains(msg, "+11:00") || !strings.Contains(msg, "critical") {
 		t.Fatal(msg)
+	}
+	// A zone with no rules here is left out; with the flag, refused.
+	m = e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00[Mars/Olympus_Mons]", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	if f := e.file(m["id"].(string)); !strings.Contains(f, `start: "2026-11-07T14:24:00+11:00"`+"\n") {
+		t.Fatal(f)
+	}
+	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[!Mars/Olympus_Mons]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+}
+
+// #14's example: defaults.zone is not forced onto a recorded time whose
+// offset it contradicts.
+func TestDefaultZoneNotAppliedAgainstOffset(t *testing.T) {
+	e := newEnv(t, "--zone", mel)
+	id := e.note("2026-11-07T03:30:00Z", "--occurred", "2026-11-07T12:24:00+09:00", "--basis", "recorded")
+	if f := e.file(id); !strings.Contains(f, `start: "2026-11-07T12:24:00+09:00"`+"\n") {
+		t.Fatal(f)
 	}
 }
 
@@ -424,10 +450,38 @@ func TestDefaultTimeNoZone(t *testing.T) {
 	}
 }
 
-func TestSuffixesRefused(t *testing.T) {
+// #5: what a writer does with each RFC 9557 suffix it may not write.
+func TestSuffixesOnInput(t *testing.T) {
 	e := newEnv(t)
-	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[u-ca=gregory]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
-	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[!Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	start := func(m map[string]any) string {
+		f := e.file(m["id"].(string))
+		i := strings.Index(f, "start: ")
+		return f[i : i+strings.Index(f[i:], "\n")]
+	}
+	// An elective suffix other than the zone is dropped, the rest recorded.
+	m := e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00[Australia/Melbourne][u-ca=gregory]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if got := start(m); got != `start: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"` {
+		t.Fatal(got)
+	}
+	if w, _ := m["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "[u-ca=gregory]") {
+		t.Fatal(m)
+	}
+	// A critical suffix other than the zone is refused, naming it.
+	_, msg := e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[!u-ca=hebrew]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if !strings.Contains(msg, "[!u-ca=hebrew]") {
+		t.Fatal(msg)
+	}
+	// A critical zone that agrees is written without the flag.
+	m = e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00[!Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	if got := start(m); got != `start: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"` {
+		t.Fatal(got)
+	}
+	// The same handling applies to --end.
+	m = e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00", "--end", "2026-11-07T15:00:00+11:00[u-ca=gregory]", "--basis", "stated", "--now", "2026-11-08T00:02:00Z")
+	if f := e.file(m["id"].(string)); !strings.Contains(f, `end: "2026-11-07T15:00:00+11:00"`+"\n") {
+		t.Fatal(f)
+	}
+	// --tz is for a date alone.
 	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00", "--tz", mel, "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
 }
 

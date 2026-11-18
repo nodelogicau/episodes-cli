@@ -26,8 +26,8 @@ and are open. Items 17 and 18 were raised on 2026-11-14 as
 | 6 | Which bytes `hash` covers, per media type | open, [#24](https://github.com/nodelogicau/episodes/issues/24) |
 | 7 | A harness recording a self-attested act should name the attesting turn | settled upstream (`acts-and-containers`, [#25](https://github.com/nodelogicau/episodes/issues/25)); adopted in #8 |
 | 8 | The validator needs a registry snapshot | open, [#26](https://github.com/nodelogicau/episodes/issues/26) |
-| 9 | Where a writer learns the zone | open, [#27](https://github.com/nodelogicau/episodes/issues/27) |
-| 10 | Elective suffixes on input | open, [#28](https://github.com/nodelogicau/episodes/issues/28) |
+| 9 | Where a writer learns the zone | settled upstream ([#27](https://github.com/nodelogicau/episodes/issues/27)); adopted in #14 |
+| 10 | Elective suffixes on input | settled upstream ([#28](https://github.com/nodelogicau/episodes/issues/28)); adopted in #5 |
 | 11 | Redacting a field the episode never carried | open, [#29](https://github.com/nodelogicau/episodes/issues/29) |
 | 12 | Rebuilding when a sealed segment's count is wrong | open, [#30](https://github.com/nodelogicau/episodes/issues/30) |
 | 13 | A withdrawn turn in a conversation | open, [#31](https://github.com/nodelogicau/episodes/issues/31) |

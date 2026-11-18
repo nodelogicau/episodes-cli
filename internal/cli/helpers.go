@@ -150,8 +150,10 @@ func zoneFor(ws *store.Workspace, flag string) (string, error) {
 }
 
 // buildOccurred is the occurred block from flags, or now with basis
-// recorded when the verb may default it.
-func buildOccurred(f occurredFlags, mayDefault bool, now time.Time, zone string) (model.Occurred, error) {
+// recorded when the verb may default it. A supplied bound is put in the form
+// a writer writes (temporal.ForWriting), and what that dropped is appended to
+// notesOut.
+func buildOccurred(f occurredFlags, mayDefault bool, now time.Time, zone string, notesOut *[]string) (model.Occurred, error) {
 	if f.start == "" {
 		switch {
 		case !mayDefault:
@@ -171,7 +173,27 @@ func buildOccurred(f occurredFlags, mayDefault bool, now time.Time, zone string)
 	case "planned":
 		return model.Occurred{}, refusedErr("basis: planned is not a basis; occurred comes from the happening, never from a plan, schedule or time set aside")
 	}
-	return model.Occurred{Start: f.start, End: f.end, TZ: f.tz, Basis: f.basis}, nil
+	occ := model.Occurred{TZ: f.tz, Basis: f.basis}
+	for _, b := range []struct {
+		flag, raw string
+		dst       *string
+	}{{"--occurred", f.start, &occ.Start}, {"--end", f.end, &occ.End}} {
+		if b.raw == "" {
+			continue
+		}
+		out, notes, err := temporal.ForWriting(b.raw)
+		if err != nil {
+			if _, perr := temporal.Parse(b.raw); perr != nil {
+				// Malformed: left for the episode check, which names the field.
+				*b.dst = b.raw
+				continue
+			}
+			return model.Occurred{}, refusedErr("suffix_refused: %s: %v", b.flag, err)
+		}
+		*b.dst = out
+		*notesOut = append(*notesOut, notes...)
+	}
+	return occ, nil
 }
 
 // parseLinks reads repeated --link rel=href.

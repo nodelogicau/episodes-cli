@@ -7,6 +7,17 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **RFC 9557 suffixes on input are normalised instead of refused** (#5,
+  upstream nodelogicau/episodes#28). Every verb that takes `--occurred` or
+  `--end` drops an elective suffix other than the zone, and warns. A
+  critical suffix other than the zone is refused, naming it. A critical
+  zone is checked against the offset: the value is written without the
+  flag when they agree, and refused when they don't.
+- **A zone that contradicts the offset, or one with no rules, is left
+  out** (#14, upstream nodelogicau/episodes#27). The offset is written
+  alone, with a warning, where the value used to be refused. `--zone`,
+  `EPISODES_ZONE` and `defaults.zone` still apply only to a time taken from
+  the clock.
 - **BREAKING (file output): `act` writes `content: {mode: attested}`** (#8,
   upstream change `acts-and-containers`). Before, it wrote `{mode: none}`.
   `attested` is a fourth content mode, and it carries no other key,
