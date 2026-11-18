@@ -39,6 +39,12 @@ All notable changes to `episodes` are recorded here. The format follows
   writes it, and `validate` reports it as valid with a
   `language_unregistered` warning, because the registry holds no such
   subtag. Ill-formed tags such as `en_AU`, and `und`, are still rejected.
+- **`list --container` lists children in the container's order** (#11,
+  upstream nodelogicau/episodes#19). That is by `ordinal`, then by id, with
+  children that have no `ordinal` last. Before, it ordered them by when they
+  occurred. `--by ordinal` names this order, and `--by occurred` and
+  `--by recorded` still work. `show --children` and `thread` already used
+  this order, and a test now pins it.
 
 ## [0.1.0] - unreleased
 

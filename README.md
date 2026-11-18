@@ -91,7 +91,7 @@ episodes validate
 | `observe <id>` | Write `source_status` on a reference episode, either from `--state` or by hashing `--content-file`, or by comparing `--version`. |
 | `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. It is irreversible and never cascades, and every result says that git history still holds the text. |
 | `show <id> [--children]` | Print an episode, located by the path its id derives (the index is never read). |
-| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). |
+| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. |
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
 | `index [--check]` | Rebuild the root index from the files and write missing segments, or compare without writing. |
