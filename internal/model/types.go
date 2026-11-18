@@ -114,10 +114,13 @@ const (
 	ModeInline = "inline"
 	ModeRef    = "ref"
 	ModeNone   = "none"
+	// ModeAttested marks a self-attested act: the content is the author's
+	// attestation, and carries no other key.
+	ModeAttested = "attested"
 )
 
 // Modes lists the valid content modes.
-var Modes = []string{ModeInline, ModeRef, ModeNone}
+var Modes = []string{ModeInline, ModeRef, ModeNone, ModeAttested}
 
 // Derivations of inline text.
 const (

@@ -475,7 +475,7 @@ func TestDeepWorkLoggedAfterTheFact(t *testing.T) {
 		t.Fatal(m)
 	}
 	f := e.file(m["id"].(string))
-	for _, want := range []string{"kind: activity", "content:\n  mode: none\n", "links:\n  - rel: via\n    href: " + turn, "standpoint: " + ada, "author: " + ada} {
+	for _, want := range []string{"kind: activity", "content:\n  mode: attested\n", "links:\n  - rel: via\n    href: " + turn, "standpoint: " + ada, "author: " + ada} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("missing %q:\n%s", want, f)
 		}
@@ -572,13 +572,84 @@ func TestControlWritesNoMarker(t *testing.T) {
 func TestActWithMismatchedStandpointInvalid(t *testing.T) {
 	e := newEnv(t)
 	id := idAt(at("2026-11-07T03:00:00Z"))
-	body := strings.Replace(handMade(id, ""), "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n", "content:\n  mode: none\n", 1)
+	inline := "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n"
+	body := strings.Replace(handMade(id, ""), inline, "content:\n  mode: attested\n", 1)
 	body = strings.Replace(body, "standpoint: "+ada, "standpoint: "+jane, 1)
 	e.put(id, body)
 	rep, code := e.validate("2026-11-08T00:00:00Z")
 	if code != 4 || finding(rep, "act_standpoint_mismatch") == nil {
 		t.Fatal(rep)
 	}
+	// An act with children is still an act (#9): the rules key on the mode.
+	child := idAt(at("2026-11-07T03:01:00Z"))
+	e.put(child, strings.Replace(handMade(child, ""), "content:", "container: "+id+"\ncontent:", 1))
+	if rep, code := e.validate("2026-11-08T00:00:00Z"); code != 4 || finding(rep, "act_standpoint_mismatch") == nil {
+		t.Fatal(rep)
+	}
+}
+
+// #9: the same shape with mode none is a childless container, not an act:
+// valid whatever its standpoint, with a warning. Acts written by an earlier
+// build read this way.
+func TestChildlessNoneIsNotAnAct(t *testing.T) {
+	e := newEnv(t)
+	id := idAt(at("2026-11-07T03:00:00Z"))
+	inline := "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n"
+	body := strings.Replace(handMade(id, ""), inline, "content:\n  mode: none\n", 1)
+	e.put(id, strings.Replace(body, "standpoint: "+ada, "standpoint: "+jane, 1))
+	rep, code := e.validate("2026-11-08T00:00:00Z")
+	f := finding(rep, "container_without_children")
+	if code != 0 || f == nil || f["severity"] != "warning" || f["id"] != id || finding(rep, "act_standpoint_mismatch") != nil {
+		t.Fatal(rep)
+	}
+}
+
+func TestAttestedCarriesNothingElse(t *testing.T) {
+	e := newEnv(t)
+	id := idAt(at("2026-11-07T03:00:00Z"))
+	inline := "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n"
+	e.put(id, strings.Replace(handMade(id, ""), inline, "content:\n  mode: attested\n  language: en\n", 1))
+	rep, code := e.validate("2026-11-08T00:00:00Z")
+	f := finding(rep, "attested_with_content")
+	if code != 4 || f == nil || f["field"] != "content.language" {
+		t.Fatal(rep)
+	}
+}
+
+// container_later compares ids only when both are UUIDv7 (#9).
+func TestContainerLaterOnlyBetweenUUIDv7(t *testing.T) {
+	e := newEnv(t)
+	// A non-UUIDv7 container sorts after every epi_0… id ('i' > '0'), but
+	// carries no time, so the order says nothing.
+	c := "epi_import-1"
+	e.put(c, handMade(c, ""))
+	child := idAt(at("2026-11-07T03:00:00Z"))
+	e.put(child, strings.Replace(handMade(child, ""), "content:", "container: "+c+"\ncontent:", 1))
+	rep, _ := e.validate("2026-11-08T00:00:00Z")
+	if finding(rep, "container_unresolved") != nil || finding(rep, "container_later") != nil {
+		t.Fatal(rep)
+	}
+	// Between UUIDv7 ids it is still checked.
+	late := idAt(at("2026-11-07T04:00:00Z"))
+	e.put(late, handMade(late, ""))
+	early := idAt(at("2026-11-07T03:30:00Z"))
+	e.put(early, strings.Replace(handMade(early, ""), "content:", "container: "+late+"\ncontent:", 1))
+	rep, _ = e.validate("2026-11-08T00:00:00Z")
+	if f := finding(rep, "container_later"); f == nil || f["id"] != early {
+		t.Fatal(rep)
+	}
+}
+
+// An act may be named as a container, and is listed with its mode.
+func TestActAsContainer(t *testing.T) {
+	e := newEnv(t)
+	act := e.ok("act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--label", "Ran the 10k", "--now", "2026-11-07T03:00:00Z")["id"].(string)
+	e.note("2026-11-07T03:01:00Z", "--container", act)
+	items := e.ok("list", "--by", "recorded")["episodes"].([]any)
+	if items[0].(map[string]any)["mode"] != "attested" {
+		t.Fatal(items)
+	}
+	e.expectValid()
 }
 
 func TestChildlessConversationContainer(t *testing.T) {
@@ -588,10 +659,10 @@ func TestChildlessConversationContainer(t *testing.T) {
 	_ = c
 	rep, _ := e.validate("2026-11-08T00:00:00Z")
 	f := finding(rep, "container_without_children")
-	if f == nil || f["severity"] != "info" || !strings.Contains(f["message"].(string), "conversation turn") {
+	if f == nil || f["severity"] != "warning" || !strings.Contains(f["message"].(string), "conversation turn") {
 		t.Fatal(rep)
 	}
-	// The act rules apply: Ada's own container passes them.
+	// Not an act: the act rules do not apply.
 	if finding(rep, "act_standpoint_mismatch") != nil {
 		t.Fatal(rep)
 	}

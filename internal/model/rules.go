@@ -352,6 +352,24 @@ func (c *checker) content(e *Episode) {
 			c.err("none_with_content", "content", "content with mode none carries nothing else (has %s)", strings.Join(extra, ", "))
 		}
 		return
+	case ModeAttested:
+		var extra []string
+		for _, f := range []struct{ name, v string }{
+			{"ref", ct.Ref}, {"uid", ct.UID}, {"version", ct.Version}, {"hash", ct.Hash},
+			{"media_type", ct.MediaType}, {"derivation", ct.Derivation}, {"language", ct.Language},
+		} {
+			if f.v != "" {
+				extra = append(extra, f.name)
+			}
+		}
+		if ct.Text != nil {
+			extra = append(extra, "text")
+		}
+		extra = append(extra, ct.Extra.Keys()...)
+		for _, name := range extra {
+			c.err("attested_with_content", "content."+name, "content with mode attested has no other key (has %s): a self-attested act carries only its attestation", name)
+		}
+		return
 	default:
 		c.err("invalid_mode", "content.mode", "mode %q must be one of %s", ct.Mode, strings.Join(Modes, ", "))
 		return

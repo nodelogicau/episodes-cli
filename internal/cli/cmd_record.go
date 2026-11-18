@@ -476,7 +476,7 @@ func (a *app) actCmd() *cobra.Command {
 		Use:   "act --occurred V --basis stated|inferred [--via epi_T | --control]",
 		Short: "Record a self-attested act: something the author did that left no record, on their explicit request",
 		Long: `Record a self-attested act. Its standpoint is the resolved source.author, its
-content is {mode: none}, and its time is when the act took place. Record one
+content is {mode: attested}, and its time is when the act took place. Record one
 only when the person explicitly asks for it, never from what is inferred.
 
 Say how it was attested. --via names the episode (usually the turn) in which
@@ -488,7 +488,7 @@ is required. An act still going on is recorded with its start and no --end.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			if f.language != "" {
-				return refusedErr("language_on_none: a self-attested act has content mode none, which carries no language")
+				return refusedErr("language_on_attested: a self-attested act has content mode attested, which carries no other key, language included")
 			}
 			if via != "" && control {
 				return usageErr("use either --via (the attestation is that episode) or --control (a dedicated control; no episode holds it), not both")
@@ -525,7 +525,7 @@ is required. An act still going on is recorded with its start and no --end.`,
 				if err != nil {
 					return nil, nil, err
 				}
-				ep.Content = model.Content{Mode: model.ModeNone}
+				ep.Content = model.Content{Mode: model.ModeAttested}
 				if err := checkProblems(ep); err != nil {
 					return nil, nil, err
 				}

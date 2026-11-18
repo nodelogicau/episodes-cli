@@ -152,7 +152,7 @@ func (v *validator) relations(eps []*model.Episode, byID map[string]*model.Episo
 			if _, ok := byID[c]; !ok {
 				v.add(model.SevWarning, "container_unresolved", ep.ID, rel(ep.ID), "container", "container %s does not resolve in this workspace", c)
 			}
-			if c >= ep.ID {
+			if c >= ep.ID && model.IsCanonicalID(c) && model.IsCanonicalID(ep.ID) {
 				v.add(model.SevWarning, "container_later", ep.ID, rel(ep.ID), "container", "container %s was not minted before %s; a container is recorded before its children", c, ep.ID)
 			}
 		}
@@ -164,9 +164,12 @@ func (v *validator) relations(eps []*model.Episode, byID map[string]*model.Episo
 				v.add(model.SevInfo, "link_unresolved", ep.ID, rel(ep.ID), "links", "%s links %s to %s, which does not resolve in this workspace", ep.ID, l.Rel, l.Href)
 			}
 		}
-		// Self-attested acts, recognised by shape.
-		if ep.Content.Mode == model.ModeNone && len(children[ep.ID]) == 0 {
+		// Self-attested acts are recognised by their mode, children or not.
+		switch {
+		case ep.Content.Mode == model.ModeAttested:
 			v.act(ep, byID)
+		case ep.Content.Mode == model.ModeNone && len(children[ep.ID]) == 0:
+			v.childless(ep)
 		}
 	}
 	// (container, ordinal) repeated.
@@ -221,7 +224,7 @@ func (v *validator) relations(eps []*model.Episode, byID map[string]*model.Episo
 func (v *validator) act(ep *model.Episode, byID map[string]*model.Episode) {
 	rel := store.RelPath(ep.ID)
 	if ep.Standpoint != ep.Source.Author {
-		v.add(model.SevError, "act_standpoint_mismatch", ep.ID, rel, "standpoint", "a self-attested act (content mode none, no children) must have standpoint equal to source.author: standpoint is %q, source.author is %q", ep.Standpoint, ep.Source.Author)
+		v.add(model.SevError, "act_standpoint_mismatch", ep.ID, rel, "standpoint", "a self-attested act (content mode attested) must have standpoint equal to source.author: standpoint is %q, source.author is %q", ep.Standpoint, ep.Source.Author)
 	}
 	for _, l := range ep.Links {
 		if l.Rel != "via" || !model.IsID(l.Href) {
@@ -231,9 +234,17 @@ func (v *validator) act(ep *model.Episode, byID map[string]*model.Episode) {
 			v.add(model.SevError, "act_via_standpoint", ep.ID, rel, "links", "a self-attested act is attested by its own standpoint: via %s has standpoint %q, the act %q", l.Href, t.Standpoint, ep.Standpoint)
 		}
 	}
+}
+
+// childless warns on a container with nothing of its own and no children:
+// valid whatever its standpoint, and not an act. Acts written with mode none
+// under the earlier draft read this way too.
+func (v *validator) childless(ep *model.Episode) {
+	remedy := "an episode naming it as container makes it a container again and changes no existing file"
 	if ep.Kind == "conversation" || ep.Kind == "thread" {
-		v.add(model.SevInfo, "container_without_children", ep.ID, rel, "", "%s is a %s with content mode none and no children, so it is read as a self-attested act; if it is a container whose first child was lost, `episodes conversation turn %s` appends a child, which makes it a container again and changes no existing file", ep.ID, ep.Kind, ep.ID)
+		remedy = fmt.Sprintf("`episodes conversation turn %s` appends a child, which changes no existing file", ep.ID)
 	}
+	v.add(model.SevWarning, "container_without_children", ep.ID, store.RelPath(ep.ID), "", "%s (%s) has content mode none, which marks a container, and no episode names it as container; %s", ep.ID, ep.Kind, remedy)
 }
 
 // index checks the root and every segment: readability, sealed counts

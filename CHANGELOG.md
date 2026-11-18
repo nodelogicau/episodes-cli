@@ -7,6 +7,20 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **BREAKING (file output): `act` writes `content: {mode: attested}`** (#8,
+  upstream change `acts-and-containers`). Before, it wrote `{mode: none}`.
+  `attested` is a fourth content mode, and it carries no other key,
+  `language` included. Every reader accepts it. An older build reports
+  `invalid_mode` on an act written by this one. Existing files are not
+  rewritten.
+- **`validate` recognises acts by their mode, not by their shape** (#9). The
+  act rules apply to every `mode: attested` episode, even one with
+  children, and to no other episode. A `mode: none` episode with no
+  children is a container whose children are missing: it is valid whatever
+  its standpoint, and gets the warning `container_without_children` (which
+  used to be info, and only for conversations and threads). Acts written
+  with `mode: none` by an earlier build read this way. `container_later` is
+  checked only when both ids are UUIDv7.
 - **`record ref`'s duplicate lookup reads a uid cache** (#3, change
   `uid-cache`). The cache is kept outside the workspace, in the user cache
   directory (or `$EPISODES_CACHE_DIR`), keyed by `workspace.id` and the
