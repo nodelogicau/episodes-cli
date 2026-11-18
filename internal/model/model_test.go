@@ -212,7 +212,9 @@ func TestRules(t *testing.T) {
 		{"unknown hash algorithm", func(e *Episode) { e.Content = Content{Mode: ModeRef, Ref: "f", Hash: "blake3:ab12"} }, "hash_unverified", SevInfo, ForValidate},
 		{"malformed hash", func(e *Episode) { e.Content = Content{Mode: ModeRef, Ref: "f", Hash: "nohash"} }, "hash_invalid", SevError, ForValidate},
 		{"language und", func(e *Episode) { e.Content.Language = "und" }, "language_und", SevError, ForValidate},
-		{"language english", func(e *Episode) { e.Content.Language = "english" }, "language_invalid", SevError, ForValidate},
+		{"language english warns", func(e *Episode) { e.Content.Language = "english" }, "language_unregistered", SevWarning, ForValidate},
+		{"language english written", func(e *Episode) { e.Content.Language = "english" }, "language_unregistered", SevWarning, ForWrite},
+		{"language en_AU", func(e *Episode) { e.Content.Language = "en_AU" }, "language_invalid", SevError, ForValidate},
 		{"language on none", func(e *Episode) { e.Content = Content{Mode: ModeNone, Language: "en"} }, "language_on_none", SevError, ForValidate},
 		{"bad derivation", func(e *Episode) { e.Content.Derivation = "translated" }, "invalid_derivation", SevError, ForValidate},
 		{"bad mode", func(e *Episode) { e.Content.Mode = "embedded" }, "invalid_mode", SevError, ForValidate},
@@ -288,8 +290,19 @@ func TestLanguage(t *testing.T) {
 	if !SameLanguage("EN-au", "en-AU") {
 		t.Error("case-insensitive comparison")
 	}
-	if !WellFormedLanguage("english") || LanguageProblem("english") == nil {
-		t.Error("english is well-formed under the ABNF and refused as content.language")
+	if !WellFormedLanguage("english") || LanguageProblem("english") != nil {
+		t.Error("english is well-formed under the RFC 5646 grammar and accepted as content.language")
+	}
+	if _, ok := LanguageUnregistered("english"); !ok {
+		t.Error("english: a primary subtag of seven letters is not in the registry")
+	}
+	for _, tag := range []string{"en", "zh-Hant-TW", "i-klingon", "sgn-BE-FR"} {
+		if msg, ok := LanguageUnregistered(tag); ok {
+			t.Errorf("%s: unexpected %s", tag, msg)
+		}
+	}
+	if err := LanguageProblem("en_AU"); err == nil {
+		t.Error("en_AU is ill-formed")
 	}
 	if err := LanguageProblem("und"); err == nil || !strings.Contains(err.Error(), "leave out") {
 		t.Errorf("und: %v", err)

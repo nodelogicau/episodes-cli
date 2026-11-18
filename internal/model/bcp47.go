@@ -177,7 +177,9 @@ func CanonicalLanguageCase(tag string) string {
 func SameLanguage(a, b string) bool { return strings.EqualFold(a, b) }
 
 // LanguageProblem is why tag cannot be content.language: not well-formed, or
-// und. A tag in the wrong case is not a problem for a reader.
+// und. Well-formedness is the RFC 5646 §2.1 grammar alone, checked without
+// the registry, so a tag of unregistered subtags (english) is no problem. A
+// tag in the wrong case is not a problem for a reader.
 func LanguageProblem(tag string) error {
 	if strings.EqualFold(tag, "und") {
 		return fmt.Errorf("language %q (undetermined) must not be written: leave out a language that is not known", tag)
@@ -185,12 +187,20 @@ func LanguageProblem(tag string) error {
 	if !WellFormedLanguage(tag) {
 		return fmt.Errorf("language %q is not a well-formed BCP 47 tag (for example en, en-AU, zh-Hant-TW, or mul for several)", tag)
 	}
-	// The ABNF admits a primary language subtag of four to eight letters, but
-	// four letters are reserved and none of five to eight is registered, so
-	// such a tag (english) cannot name a language. This is the one place the
-	// check goes beyond the grammar; see SPEC-FEEDBACK.md.
-	if primary, _, _ := strings.Cut(tag, "-"); len(primary) >= 4 && isAlpha(primary) && !isGrandfathered(tag) {
-		return fmt.Errorf("language %q has a primary subtag of %d letters, which no language has; use a two- or three-letter code (for example en)", tag, len(primary))
-	}
 	return nil
+}
+
+// LanguageUnregistered reports why a well-formed tag is known to use a
+// subtag missing from the IANA Language Subtag Registry, without carrying
+// the registry: a primary language subtag of four letters is reserved, and
+// one of five to eight letters is reserved for registration and none is
+// registered. It is grounds for a warning, never for rejection.
+func LanguageUnregistered(tag string) (string, bool) {
+	if isGrandfathered(tag) {
+		return "", false
+	}
+	if primary, _, _ := strings.Cut(tag, "-"); len(primary) >= 4 && isAlpha(primary) {
+		return fmt.Sprintf("language %q has a primary subtag of %d letters, which the registry does not hold; a language is usually a two- or three-letter code (for example en)", tag, len(primary)), true
+	}
+	return "", false
 }

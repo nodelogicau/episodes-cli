@@ -31,6 +31,15 @@ All notable changes to `episodes` are recorded here. The format follows
   carries `attestation` (`via`, `control` or `author`). The episode file is
   unchanged.
 
+### Fixed
+
+- **`content.language` accepts every tag the RFC 5646 §2.1 grammar
+  accepts** (#7, upstream nodelogicau/episodes#36). A primary subtag of four
+  to eight letters, such as `english`, is no longer rejected. `record`
+  writes it, and `validate` reports it as valid with a
+  `language_unregistered` warning, because the registry holds no such
+  subtag. Ill-formed tags such as `en_AU`, and `und`, are still rejected.
+
 ## [0.1.0] - unreleased
 
 The foundation (`bootstrap-episodes-cli`): a complete, byte-stable writer for

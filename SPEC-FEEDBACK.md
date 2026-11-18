@@ -35,7 +35,7 @@ and are open. Items 17 and 18 were raised on 2026-11-14 as
 | 15 | A sealed month with no files | open, [#33](https://github.com/nodelogicau/episodes/issues/33) |
 | 16 | A container's standpoint | open, [#34](https://github.com/nodelogicau/episodes/issues/34) |
 | 17 | The `EPISODE` example's `participants` are not sorted | open, [#35](https://github.com/nodelogicau/episodes/issues/35) |
-| 18 | `english` is well-formed under the BCP 47 ABNF | open, [#36](https://github.com/nodelogicau/episodes/issues/36) |
+| 18 | `english` is well-formed under the BCP 47 ABNF | settled upstream (`tighten-canonical-form`, [#36](https://github.com/nodelogicau/episodes/issues/36)); adopted in #7 |
 
 ---
 
@@ -310,3 +310,8 @@ one place the check goes beyond the grammar.
 **Proposal.** Either use an example that is ill-formed under the ABNF (such
 as `en_AU` or `en-`), or state that a primary subtag longer than three
 letters is rejected.
+
+**Outcome.** Upstream took the first option. A well-formed tag is one that
+matches the §2.1 grammar, and a validator may warn on a subtag missing from
+the registry but must not reject it. The extra rejection is gone. `english`
+is valid with a `language_unregistered` warning (#7).

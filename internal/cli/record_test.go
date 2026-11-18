@@ -242,7 +242,14 @@ func TestLanguage(t *testing.T) {
 	if !strings.Contains(msg, "leave out") {
 		t.Fatal(msg)
 	}
-	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x", "--language", "english")
+	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x", "--language", "en_AU")
+	// english is well-formed (a seven-letter primary subtag, #7): written,
+	// and validate warns that the registry does not hold it, without failing.
+	en := e.note("2026-11-07T03:01:00Z", "--language", "english")
+	if !strings.Contains(e.file(en), "language: english") {
+		t.Fatal(e.file(en))
+	}
+	e.expectFinding("language_unregistered", "warning", "content.language")
 	e.fails(2, "act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--language", "en")
 }
 

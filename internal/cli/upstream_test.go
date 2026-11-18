@@ -156,7 +156,7 @@ func TestUpstream(t *testing.T) {
 		"content-language/An ill-formed tag": func(t *testing.T) {
 			e := newEnv(t)
 			id := idAt(at("2026-11-07T03:00:00Z"))
-			e.put(id, body(id, "  text: hi\n", "  language: english\n  text: hi\n"))
+			e.put(id, body(id, "  text: hi\n", "  language: en_AU\n  text: hi\n"))
 			e.expectFinding("language_invalid", "error", "content.language")
 		},
 		"content-language/A stated language": func(t *testing.T) {

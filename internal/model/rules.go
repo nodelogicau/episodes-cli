@@ -363,8 +363,13 @@ func (c *checker) content(e *Episode) {
 				code = "language_und"
 			}
 			c.err(code, "content.language", "%v", err)
-		} else if c.mode == ForWrite && ct.Language != CanonicalLanguageCase(ct.Language) {
-			c.err("language_case", "content.language", "language %q must be written %q", ct.Language, CanonicalLanguageCase(ct.Language))
+		} else {
+			if c.mode == ForWrite && ct.Language != CanonicalLanguageCase(ct.Language) {
+				c.err("language_case", "content.language", "language %q must be written %q", ct.Language, CanonicalLanguageCase(ct.Language))
+			}
+			if msg, ok := LanguageUnregistered(ct.Language); ok {
+				c.add(SevWarning, "language_unregistered", "content.language", "%s", msg)
+			}
 		}
 	}
 }
