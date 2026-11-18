@@ -40,9 +40,12 @@ A writer SHALL refuse an `up` or `collection` link whose `href` is the episode's
 - **THEN** the write is refused with exit 2
 
 ### Requirement: Readers never reject for a rel
-`show`, `list` and `thread` SHALL display an episode whatever its rels. `validate` SHALL report an error (`link_rel_invalid`) for a rel that is neither in the snapshot nor an absolute URI.
+`show`, `list` and `thread` SHALL display an episode whatever its rels. `validate` SHALL warn (`link_rel_unregistered`), naming the link, on a rel that has the form RFC 8288 gives a registered relation type (a lowercase letter followed by lowercase letters, digits, `.` or `-`) and is missing from the snapshot, and SHALL NOT count it as an error. `validate` SHALL report an error (`link_rel_invalid`) only for a rel that is neither of that form nor an absolute URI. The write path is unchanged: a writer SHALL refuse a rel that is neither in the snapshot nor an absolute URI.
 
 #### Scenario: Unknown rel on read
 - **WHEN** a hand-written file carries `rel: fulfils`
-- **THEN** `show` prints it and `validate` reports `link_rel_invalid`
+- **THEN** `show` prints it, and `validate` exits valid with the warning `link_rel_unregistered`
 
+#### Scenario: A rel of neither form
+- **WHEN** a hand-written file carries `rel: Answers` or `rel: my relation`
+- **THEN** `validate` reports the error `link_rel_invalid`

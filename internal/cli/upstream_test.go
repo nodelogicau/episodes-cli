@@ -328,7 +328,7 @@ func TestUpstream(t *testing.T) {
 			e := newEnv(t)
 			id := idAt(at("2026-11-07T03:00:00Z"))
 			e.put(id, body(id, "content:", "links:\n  - rel: answers\n    href: https://example.com/q\ncontent:"))
-			e.expectFinding("link_rel_invalid", "error", "links[0].rel")
+			e.expectFinding("link_rel_unregistered", "warning", "links[0].rel")
 		},
 		"episode-links/Adding a link later": func(t *testing.T) {
 			orig := &model.Episode{ID: "epi_x", Type: "episode", Kind: "note"}

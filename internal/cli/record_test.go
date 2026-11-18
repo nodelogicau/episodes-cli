@@ -319,10 +319,18 @@ func TestUnknownRelOnRead(t *testing.T) {
 	if r := e.run("show", id); r.code != 0 || !strings.Contains(r.out, "fulfils") {
 		t.Fatal(r)
 	}
-	rep, code := e.validate("2026-11-08T00:00:00Z")
-	if code != 4 || finding(rep, "link_rel_invalid") == nil {
-		t.Fatal(rep)
+	// #6: of registered form, so valid with a warning.
+	f := e.expectFinding("link_rel_unregistered", "warning", "links[0].rel")
+	if !strings.Contains(f["message"].(string), "links[0]") {
+		t.Fatal(f)
 	}
+	// Neither registered form nor an absolute URI: still an error.
+	for _, rel := range []string{"Answers", `"my relation"`} {
+		e.put(id, strings.Replace(handMade(id, ""), "content:", "links:\n  - rel: "+rel+"\n    href: https://example.com/x\ncontent:", 1))
+		e.expectFinding("link_rel_invalid", "error", "links[0].rel")
+	}
+	// The write path still refuses an unregistered non-URI rel.
+	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x", "--link", "fulfils=https://example.com/x", "--now", "2026-11-08T00:00:00Z")
 }
 
 // --- object-format ---------------------------------------------------------

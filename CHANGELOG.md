@@ -7,6 +7,14 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **`validate` warns, rather than reporting an error, on an unregistered
+  rel of registered form** (#6, upstream nodelogicau/episodes#26). A rel
+  such as `answers` that has the form of a registered relation but is
+  missing from this build's registry snapshot is valid, with the warning
+  `link_rel_unregistered`. That way two validators carrying different
+  copies of the registry differ only in warnings. A rel of neither form
+  (`Answers`, `my relation`) is still an error. `record` still refuses an
+  unregistered rel that isn't an absolute URI.
 - **Redacting `content.ref` also redacts `uid`, `version`, `hash` and
   `links`** (#12, upstream nodelogicau/episodes#37). Each of these could
   lead back to the content. `redact` adds whichever the episode carries and

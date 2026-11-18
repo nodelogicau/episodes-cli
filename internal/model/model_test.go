@@ -235,7 +235,10 @@ func TestRules(t *testing.T) {
 		{"bad mode", func(e *Episode) { e.Content.Mode = "embedded" }, "invalid_mode", SevError, ForValidate},
 		{"no source", func(e *Episode) { e.Source = Source{Model: "x"} }, "source_missing", SevError, ForValidate},
 		{"link shape", func(e *Episode) { e.Links = []Link{{Rel: "via"}} }, "link_shape", SevError, ForValidate},
-		{"unregistered rel", func(e *Episode) { e.Links = []Link{{Rel: "answers", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForValidate},
+		{"unregistered rel warns", func(e *Episode) { e.Links = []Link{{Rel: "answers", Href: "https://x.example"}} }, "link_rel_unregistered", SevWarning, ForValidate},
+		{"unregistered rel refused on write", func(e *Episode) { e.Links = []Link{{Rel: "answers", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForWrite},
+		{"rel of neither form", func(e *Episode) { e.Links = []Link{{Rel: "Answers", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForValidate},
+		{"rel with a space", func(e *Episode) { e.Links = []Link{{Rel: "my relation", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForValidate},
 		{"uri rel", func(e *Episode) {
 			e.Links = []Link{{Rel: "https://www.w3.org/ns/activitystreams#inReplyTo", Href: "https://x.example"}}
 		}, "", "", ForValidate},

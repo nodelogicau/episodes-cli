@@ -252,7 +252,13 @@ func (c *checker) links(e *Episode) {
 			}
 		}
 		if err := RelProblem(l.Rel); err != nil {
-			c.err("link_rel_invalid", field+".rel", "%v", err)
+			if c.mode == ForValidate && HasRegisteredForm(l.Rel) {
+				// Registered after this build's snapshot, perhaps: every
+				// reader accepts it, so two validators differ only in warnings.
+				c.add(SevWarning, "link_rel_unregistered", field+".rel", "%s: rel %q has the form of a registered relation and is not in this build's snapshot of the IANA Link Relations registry (%s)", field, l.Rel, LinkRelationsDate)
+			} else {
+				c.err("link_rel_invalid", field+".rel", "%v", err)
+			}
 		}
 		if !IsID(l.Href) && !IsAbsoluteURI(l.Href) {
 			c.err("link_href_invalid", field+".href", "href %q is neither an episode id nor an absolute URI", l.Href)
