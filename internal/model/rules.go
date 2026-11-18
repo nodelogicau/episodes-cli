@@ -177,9 +177,19 @@ func (c *checker) occurred(e *Episode) {
 			continue
 		}
 		if after, by := temporal.AfterRecording(*b.v, o.TZ, rec); after {
+			// A stated date-time may run ahead of the recording instant by
+			// the allowance, for a source whose clock is a little fast (#13);
+			// it is recorded as stated, not clamped.
+			stated := o.Basis == BasisStated && !b.v.DateOnly
+			if stated && b.v.Instant.Sub(rec) <= temporal.StatedAllowance {
+				continue
+			}
 			hint := ""
+			if stated {
+				hint = fmt.Sprintf(", beyond the %s allowed for a stated time", temporal.HumanDuration(temporal.StatedAllowance))
+			}
 			if b.field == "occurred.end" {
-				hint = "; record it with its start and no end, or once it is over"
+				hint += "; record it with its start and no end, or once it is over"
 			}
 			c.soft("occurred_after_recording", b.field, "%s %q is later than the recording instant %s by %s: nothing is recorded before it happens%s", b.field, b.v.Raw, e.Timestamp, by, hint)
 		}

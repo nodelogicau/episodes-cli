@@ -795,3 +795,23 @@ func TestCacheWritesNothingInWorkspace(t *testing.T) {
 		t.Fatalf("cache files: %v", m)
 	}
 }
+
+// #13: mail whose Date header is thirty seconds ahead of the recording
+// instant is recorded as stated, not clamped; beyond five minutes, or for a
+// recorded time, it is still refused.
+func TestStatedTimeSlightlyAhead(t *testing.T) {
+	e := newEnv(t)
+	r := e.email(ada, "fast@clock", "2026-11-07T03:23:30Z") // occurred 03:24:00Z
+	if r.code != 0 {
+		t.Fatal(r.out, r.err)
+	}
+	if !strings.Contains(e.file(r.json(t)["id"].(string)), `start: "2026-11-07T14:24:00+11:00"`) {
+		t.Fatal("not recorded as stated")
+	}
+	e.expectValid()
+	if r := e.email(ada, "slow@clock", "2026-11-07T03:18:59Z"); r.code != 2 || !strings.Contains(r.err, "allowed for a stated time") {
+		t.Fatal(r.code, r.err)
+	}
+	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x",
+		"--occurred", "2026-11-07T14:24:00+11:00", "--basis", "recorded", "--now", "2026-11-07T03:23:30Z")
+}

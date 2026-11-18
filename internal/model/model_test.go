@@ -202,6 +202,18 @@ func TestRules(t *testing.T) {
 		{"zone mismatch refused", func(e *Episode) { e.Occurred.Start = "2026-11-07T14:24:00+10:00[Australia/Melbourne]" }, "zone_offset_mismatch", SevError, ForWrite},
 		{"after recording warns", func(e *Episode) { e.Occurred.End = "2026-11-07T15:24:00+11:00[Australia/Melbourne]" }, "occurred_after_recording", SevWarning, ForValidate},
 		{"after recording refused", func(e *Episode) { e.Occurred.End = "2026-11-07T15:24:00+11:00[Australia/Melbourne]" }, "occurred_after_recording", SevError, ForWrite},
+		// #13: a stated date-time may run up to five minutes ahead of the
+		// recording instant (03:24:40Z); recorded and inferred may not.
+		{"stated 30s ahead", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:25:10+11:00", Basis: BasisStated} }, "", "", ForWrite},
+		{"stated 5m ahead", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:29:40+11:00", Basis: BasisStated} }, "", "", ForValidate},
+		{"stated end within allowance", func(e *Episode) {
+			e.Occurred = Occurred{Start: "2026-11-07T14:00:00+11:00", End: "2026-11-07T14:27:00+11:00", Basis: BasisStated}
+		}, "", "", ForWrite},
+		{"stated beyond allowance warns", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:29:41+11:00", Basis: BasisStated} }, "occurred_after_recording", SevWarning, ForValidate},
+		{"stated beyond allowance refused", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:29:41+11:00", Basis: BasisStated} }, "occurred_after_recording", SevError, ForWrite},
+		{"inferred 30s ahead refused", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:25:10+11:00", Basis: BasisInferred} }, "occurred_after_recording", SevError, ForWrite},
+		{"recorded 30s ahead refused", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:25:10+11:00", Basis: BasisRecorded} }, "occurred_after_recording", SevError, ForWrite},
+		{"stated date two days ahead still warns", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-09", Basis: BasisStated} }, "occurred_after_recording", SevWarning, ForValidate},
 		{"inline without text", func(e *Episode) { e.Content.Text = nil }, "inline_without_text", SevError, ForValidate},
 		{"uid on inline", func(e *Episode) { e.Content.UID = "mid:a@b" }, "uid_on_inline", SevError, ForValidate},
 		{"text on ref", func(e *Episode) { e.Content.Mode = ModeRef; e.Content.Ref = "gmail:1"; e.Content.Derivation = "" }, "text_on_ref", SevError, ForValidate},

@@ -7,6 +7,12 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **A stated time may be up to five minutes ahead of `timestamp`** (#13,
+  upstream nodelogicau/episodes#22). Mail whose `Date` header runs slightly
+  fast can now be recorded, and the time is written as stated. Beyond five
+  minutes it is still refused, and `validate` warns only beyond the
+  allowance. `recorded` and `inferred` times get no allowance, and a date
+  alone keeps its one day.
 - **RFC 9557 suffixes on input are normalised instead of refused** (#5,
   upstream nodelogicau/episodes#28). Every verb that takes `--occurred` or
   `--end` drops an elective suffix other than the zone, and warns. A

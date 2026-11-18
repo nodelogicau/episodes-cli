@@ -285,6 +285,12 @@ func (v Value) End(loc *time.Location) time.Time {
 	return time.Date(v.Year, v.Month, v.Day+1, 0, 0, 0, 0, loc)
 }
 
+// StatedAllowance is how far a stated date-time may lie after the recording
+// instant: a source's clock running a little ahead, such as a mail Date
+// header, is no evidence that the event has not happened yet. It applies to
+// neither recorded nor inferred times, nor to a date alone.
+const StatedAllowance = 5 * time.Minute
+
 // AfterRecording reports whether a bound lies later than the recording
 // instant rec, as the format compares them: a date-time as the instant its
 // offset fixes; a date alone against rec's date in tz when tz is given, and

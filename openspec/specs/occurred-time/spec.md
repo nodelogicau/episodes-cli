@@ -72,7 +72,7 @@ A writer given an `occurred` bound by any verb SHALL drop an elective suffix oth
 - **THEN** the write is refused with exit 2, and the message says that `occurred` comes from the happening, never from a plan
 
 ### Requirement: Nothing is recorded before it happens
-A writer SHALL refuse an episode whose `occurred.start` or `occurred.end` is later than its `timestamp`, comparing a date-time as an instant, and a date alone with the recording instant's date reckoned in `tz` when present and otherwise in UTC allowing one day. `validate` SHALL warn (`occurred_after_recording`) on any episode that breaks this rule.
+A writer SHALL refuse an episode whose `occurred.start` or `occurred.end` is later than its `timestamp`, comparing a date-time as an instant, and a date alone with the recording instant's date reckoned in `tz` when present and otherwise in UTC allowing one day. Where `occurred.basis` is `stated`, a date-time MAY be up to five minutes later than `timestamp`, and SHALL be recorded as the source stated it, not clamped. This allowance SHALL NOT apply to `recorded` or `inferred` times, and SHALL NOT add to the one day allowed for a date alone. `validate` SHALL warn (`occurred_after_recording`) only beyond the allowance that applies.
 
 #### Scenario: Ninety minutes logged at the start
 - **WHEN** at 09:05 an act is recorded with start 09:00 and end 10:30 the same day
@@ -82,3 +82,14 @@ A writer SHALL refuse an episode whose `occurred.start` or `occurred.end` is lat
 - **WHEN** at 09:05 an act is recorded with start 09:00 and no end
 - **THEN** the write succeeds
 
+#### Scenario: Mail dated thirty seconds ahead
+- **WHEN** at 03:23:30Z `record ref` is given a mail whose `Date` header is 03:24:00Z, with `--basis stated`
+- **THEN** the write succeeds, `start` is written as stated, and `validate` reports no `occurred_after_recording`
+
+#### Scenario: Beyond the allowance
+- **WHEN** a stated date-time is five minutes and one second later than `timestamp`
+- **THEN** the write is refused with exit 2, and `validate` warns on such a file
+
+#### Scenario: No allowance for a recorded time
+- **WHEN** a `recorded` date-time is thirty seconds later than `timestamp`
+- **THEN** the write is refused with exit 2
