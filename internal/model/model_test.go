@@ -242,6 +242,26 @@ func TestRules(t *testing.T) {
 		{"uri rel", func(e *Episode) {
 			e.Links = []Link{{Rel: "https://www.w3.org/ns/activitystreams#inReplyTo", Href: "https://x.example"}}
 		}, "", "", ForValidate},
+		// #15: anchored links and memento.
+		{"anchor equals ref", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "https://web.archive.org/web/20261107031500/https://example.com/report", Anchor: "https://example.com/report"}}
+		}, "", "", ForWrite},
+		{"anchor differs from ref", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "https://web.archive.org/x", Anchor: "https://example.com/report/"}}
+		}, "link_anchor_invalid", SevError, ForValidate},
+		{"anchor on inline", func(e *Episode) {
+			e.Links = []Link{{Rel: "related", Href: "https://example.com/x", Anchor: "https://example.com/x"}}
+		}, "link_anchor_invalid", SevError, ForValidate},
+		{"memento without anchor", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "https://web.archive.org/x"}}
+		}, "memento_without_anchor", SevError, ForValidate},
+		{"memento href is an episode", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "epi_01a1b4b1-8a20-7d43-b6e1-0c9f5a7d3e12", Anchor: "https://example.com/report"}}
+		}, "memento_href_invalid", SevError, ForValidate},
 		{"up to own container", func(e *Episode) {
 			e.Container = "epi_01a1b4b1-8a20-7d43-b6e1-0c9f5a7d3e12"
 			e.Links = []Link{{Rel: "up", Href: e.Container}}
@@ -417,5 +437,24 @@ func TestRemovePath(t *testing.T) {
 	e.RemovePath("content.text")
 	if e.Content.Text != nil {
 		t.Fatal("RemovePath")
+	}
+}
+
+// #15: a link with no anchor sorts before one with the same rel and href
+// that has one, and anchor is written after href.
+func TestAnchoredLinkOrderAndForm(t *testing.T) {
+	ls := SortLinks([]Link{
+		{Rel: "related", Href: "https://a.example", Anchor: "https://r.example"},
+		{Rel: "memento", Href: "https://w.example/2"},
+		{Rel: "related", Href: "https://a.example"},
+		{Rel: "memento", Href: "https://w.example/1", Anchor: "https://r.example"},
+	})
+	var got []string
+	for _, l := range ls {
+		got = append(got, l.Rel+" "+l.Href+" "+l.Anchor)
+	}
+	want := []string{"memento https://w.example/1 https://r.example", "memento https://w.example/2 ", "related https://a.example ", "related https://a.example https://r.example"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("got %q", got)
 	}
 }

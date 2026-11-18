@@ -839,3 +839,24 @@ func TestHashWithoutMediaTypeWarns(t *testing.T) {
 		t.Fatal(m)
 	}
 }
+
+// #15: the issue's example, byte for byte.
+func TestRecordRefMemento(t *testing.T) {
+	e := newEnv(t)
+	const report = "https://example.com/report"
+	const snap = "https://web.archive.org/web/20261107031500/https://example.com/report"
+	id := e.ok("record", "ref", "--kind", "webpage", "--standpoint", ada, "--ref", report, "--memento", snap,
+		"--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")["id"].(string)
+	want := "links:\n  - rel: memento\n    href: " + snap + "\n    anchor: " + report + "\ncontent:\n  mode: ref\n  ref: " + report + "\n"
+	if !strings.Contains(e.file(id), want) {
+		t.Fatal(e.file(id))
+	}
+	e.expectValid()
+	// A memento's href is a URI, never an episode id.
+	e.fails(2, "record", "ref", "--kind", "webpage", "--standpoint", ada, "--ref", report, "--memento", id,
+		"--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	// An anchor that is not content.ref is rejected by validate, naming the link.
+	other := idAt(at("2026-11-08T00:02:00Z"))
+	e.put(other, strings.Replace(strings.Replace(e.file(id), id, other, 1), "    anchor: "+report, "    anchor: "+report+"/", 1))
+	e.expectFinding("link_anchor_invalid", "error", "links[0].anchor")
+}

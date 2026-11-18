@@ -7,6 +7,15 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **Anchored links and the `memento` relation** (#15, upstream change
+  `web-content`, nodelogicau/episodes#13 and #16). A link may carry RFC
+  8288's `anchor`, in one form only: the episode's own `content.ref`. Links
+  are sorted with an unanchored link before an anchored one with the same
+  `rel` and `href`. `record ref --memento <uri>` writes a `memento` link to
+  an archived snapshot you already made. Recording never archives
+  anything itself. `validate` rejects an anchor that is not `content.ref`
+  or is on an inline episode, a `memento` without an anchor, and a
+  `memento` whose `href` is an episode id.
 - **`record ref` says which bytes to hash** (#10, upstream
   nodelogicau/episodes#24). The help text and README give the bytes for
   each `media_type`, what to do when you hold only a provider's rendering

@@ -84,7 +84,7 @@ episodes validate
 | `workspace` | Show the resolved workspace, how it was found (`flag`, `env`, `marker`, `pointer`), and its configuration. |
 | `workspace pointer [dir] [--at D] [--force]` | Write a `.episodes` pointer naming the workspace. |
 | `record inline` | Record content that has no other home: a note, or a transcript the harness made. Without `--occurred`, the time is now and the basis is `recorded`. |
-| `record ref` | Record a trace of content that lives elsewhere (`--ref`, `--uid` or `--message-id`, `--version`, `--hash` or `--hash-file`). `--occurred` and `--basis` are required. A repeated `(standpoint, media_type, uid)` is refused unless you pass `--allow-duplicate`. |
+| `record ref` | Record a trace of content that lives elsewhere (`--ref`, `--uid` or `--message-id`, `--version`, `--hash` or `--hash-file`). `--memento <uri>` (repeatable) records an archived snapshot you already made as a `memento` link anchored to `--ref`; recording never submits anything to an archive. `--occurred` and `--basis` are required. A repeated `(standpoint, media_type, uid)` is refused unless you pass `--allow-duplicate`. |
 | `conversation start` | Write a conversation container (`content: {mode: none}`) and its first turn, under one lock. |
 | `conversation turn <container>` | Append a turn. It is given the next ordinal under the lock. `--standpoint` is required on every turn. |
 | `act` | Record a self-attested act: its standpoint is `source.author` and its content is `{mode: attested}`, a mode that carries no other key. When a harness records it, it must say how the person attested it: `--via <episode>` (the turn where they asked) or `--control` (a dedicated logging control; the caller's statement, which the binary cannot check). |

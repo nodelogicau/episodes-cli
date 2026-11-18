@@ -235,6 +235,7 @@ func (a *app) recordRefCmd() *cobra.Command {
 	var f episodeFlags
 	var act actFlags
 	var ref, uid, messageID, mediaType, version, hash, hashFile, text string
+	var mementos []string
 	var allowDup bool
 	cmd := &cobra.Command{
 		Use:   "ref --kind K --standpoint S --ref R --occurred V --basis B",
@@ -303,6 +304,13 @@ endings are normalised CRLF to LF before hashing.`,
 					return nil, nil, err
 				}
 				ep.Content = model.Content{Mode: model.ModeRef, Ref: ref, UID: uid, Version: version, Hash: hash, MediaType: mediaType, Language: canonicalLanguage(f.language)}
+				// An archived snapshot of the referenced content, as the
+				// caller already made it: anchored to content.ref (#15).
+				// Recording never submits anything to an archive.
+				for _, m := range mementos {
+					ep.Links = append(ep.Links, model.Link{Rel: "memento", Href: m, Anchor: ref})
+				}
+				ep.Links = model.SortLinks(ep.Links)
 				if err := checkProblems(ep); err != nil {
 					return nil, nil, err
 				}
@@ -339,6 +347,7 @@ endings are normalised CRLF to LF before hashing.`,
 	cmd.Flags().StringVar(&uid, "uid", "", "the content's own identifier, verbatim (an iCalendar UID); requires --media-type")
 	cmd.Flags().StringVar(&messageID, "message-id", "", "a mail Message-ID header value, written as a mid: URI")
 	cmd.Flags().StringVar(&mediaType, "media-type", "", "media type of the content (required with --uid or --message-id)")
+	cmd.Flags().StringArrayVar(&mementos, "memento", nil, "the URI of an archived snapshot of the content as it was when recorded (repeatable); written as a memento link anchored to --ref. Give one you already made: recording never submits anything to an archive")
 	cmd.Flags().StringVar(&version, "version", "", "the source's own version id (a calendar SEQUENCE or ETag, a file revision)")
 	cmd.Flags().StringVar(&hash, "hash", "", "sha256:<64 lowercase hex> of the bytes for --media-type (see above), CRLF normalised to LF")
 	cmd.Flags().StringVar(&hashFile, "hash-file", "", "compute the hash from the bytes for --media-type (see above), in a file or - for stdin")

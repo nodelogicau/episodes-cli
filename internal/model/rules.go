@@ -246,7 +246,7 @@ func (c *checker) links(e *Episode) {
 	for i, l := range e.Links {
 		field := fmt.Sprintf("links[%d]", i)
 		if len(l.Extra) > 0 || l.Rel == "" || l.Href == "" {
-			c.err("link_shape", field, "a link must have exactly rel and href (has %s)", linkKeys(l))
+			c.err("link_shape", field, "a link has rel and href, optionally anchor, and no other key (has %s)", linkKeys(l))
 			if l.Rel == "" || l.Href == "" {
 				continue
 			}
@@ -266,6 +266,22 @@ func (c *checker) links(e *Episode) {
 		if l.Href == e.ID {
 			c.err("link_href_invalid", field+".href", "an episode cannot link to itself")
 		}
+		if l.Anchor != "" {
+			switch {
+			case e.Content.Mode != ModeRef || e.Content.Ref == "":
+				c.err("link_anchor_invalid", field+".anchor", "%s has anchor %q, and an anchor appears only on an episode that carries content.ref", field, l.Anchor)
+			case l.Anchor != e.Content.Ref:
+				c.err("link_anchor_invalid", field+".anchor", "%s has anchor %q, which must equal content.ref %q character for character", field, l.Anchor, e.Content.Ref)
+			}
+		}
+		if l.Rel == "memento" {
+			if l.Anchor == "" {
+				c.err("memento_without_anchor", field, "%s is a memento link with no anchor; a memento names an archived snapshot of the referenced content, so its anchor is content.ref", field)
+			}
+			if IsID(l.Href) {
+				c.err("memento_href_invalid", field+".href", "%s: a memento's href is the archived snapshot's URI, never an episode id (%s)", field, l.Href)
+			}
+		}
 		if (l.Rel == "up" || l.Rel == "collection") && e.Container != "" && l.Href == e.Container {
 			c.soft("link_restates_container", field, "a %s link to the episode's own container restates containment; container and ordinal already say it", l.Rel)
 		}
@@ -279,6 +295,9 @@ func linkKeys(l Link) string {
 	}
 	if l.Href != "" {
 		ks = append(ks, "href")
+	}
+	if l.Anchor != "" {
+		ks = append(ks, "anchor")
 	}
 	ks = append(ks, l.Extra.Keys()...)
 	if len(ks) == 0 {

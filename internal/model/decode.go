@@ -237,6 +237,8 @@ func (d *decoder) links(n *yaml.Node) ([]Link, error) {
 				l.Rel = d.str(p.val, field+".rel")
 			case "href":
 				l.Href = d.str(p.val, field+".href")
+			case "anchor":
+				l.Anchor = d.str(p.val, field+".anchor")
 			default:
 				l.Extra = append(l.Extra, Field{p.key, p.val})
 			}

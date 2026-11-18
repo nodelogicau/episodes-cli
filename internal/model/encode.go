@@ -43,6 +43,7 @@ func Encode(e *Episode) ([]byte, error) {
 			lm := newMap()
 			lm.str("rel", l.Rel)
 			lm.str("href", l.Href)
+			lm.str("anchor", l.Anchor)
 			lm.extras(l.Extra)
 			seq.Content = append(seq.Content, lm.n)
 		}
@@ -164,19 +165,23 @@ func SortParticipants(ps []string) []string {
 	return dedup(out)
 }
 
-// SortLinks returns links sorted by rel then href, with exact duplicates (and
-// no extra keys) removed.
+// SortLinks returns links sorted by rel, then href, then anchor (a link with
+// no anchor before one with the same rel and href that has one), with exact
+// duplicates (and no extra keys) removed.
 func SortLinks(ls []Link) []Link {
 	out := append([]Link(nil), ls...)
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Rel != out[j].Rel {
 			return out[i].Rel < out[j].Rel
 		}
-		return out[i].Href < out[j].Href
+		if out[i].Href != out[j].Href {
+			return out[i].Href < out[j].Href
+		}
+		return out[i].Anchor < out[j].Anchor
 	})
 	var res []Link
 	for i, l := range out {
-		if i > 0 && len(l.Extra) == 0 && len(out[i-1].Extra) == 0 && l.Rel == out[i-1].Rel && l.Href == out[i-1].Href {
+		if i > 0 && len(l.Extra) == 0 && len(out[i-1].Extra) == 0 && l.Rel == out[i-1].Rel && l.Href == out[i-1].Href && l.Anchor == out[i-1].Anchor {
 			continue
 		}
 		res = append(res, l)

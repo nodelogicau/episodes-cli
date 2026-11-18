@@ -4,7 +4,7 @@
 RFC 8288 typed links, the registered-relation check, write-once links, `href` resolution, and no restated containment. Introduced by change `bootstrap-episodes-cli`.
 ## Requirements
 ### Requirement: Link shape
-`--link rel=href` SHALL be repeatable. Each link SHALL have exactly `rel` and `href`. `rel` SHALL be a lowercase name in the embedded IANA Link Relations snapshot, or an absolute URI. `href` SHALL be an episode id or an absolute URI. Links SHALL be written sorted by `rel` then `href`, with exact duplicates removed.
+`--link rel=href` SHALL be repeatable. Each link SHALL have `rel` and `href`, MAY have `anchor`, and SHALL have no other key. `rel` SHALL be a lowercase name in the embedded IANA Link Relations snapshot, or an absolute URI. `href` SHALL be an episode id or an absolute URI. Links SHALL be written sorted by `rel`, then `href`, with a link that has no `anchor` before one with the same `rel` and `href` that has one, and with exact duplicates removed.
 
 #### Scenario: Transcript via its recording
 - **WHEN** `record inline --derivation transcribed --link via=epi_M …` is run and `epi_M` exists
@@ -13,6 +13,21 @@ RFC 8288 typed links, the registered-relation check, write-once links, `href` re
 #### Scenario: Unregistered rel refused
 - **WHEN** `--link fulfils=int_X` is given
 - **THEN** the write is refused with exit 2, naming the rel and suggesting an absolute URI
+
+### Requirement: Anchored links and memento
+`anchor` SHALL equal the episode's `content.ref` character for character, and SHALL appear only on an episode that carries `content.ref`. `validate` SHALL reject any other `anchor`, or an `anchor` on an inline episode, naming the link (`link_anchor_invalid`). A `memento` link names an archived snapshot of the referenced content as it was when recorded. It SHALL carry `anchor` (`memento_without_anchor` otherwise), and its `href` SHALL be a URI, never an episode id (`memento_href_invalid`). An episode MAY carry more than one. `record ref --memento <uri>` (repeatable) SHALL write a `memento` link anchored to `--ref`. Recording SHALL never submit content to an archive: a snapshot is archived only on an explicit request outside `record`.
+
+#### Scenario: A snapshot of a report
+- **WHEN** `record ref --ref https://example.com/report --memento https://web.archive.org/web/20261107031500/https://example.com/report …` is run
+- **THEN** the file carries `links: [{rel: memento, href: <snapshot>, anchor: https://example.com/report}]` and validates
+
+#### Scenario: Anchor that is not the ref
+- **WHEN** a link's `anchor` differs from `content.ref`, or appears on an inline episode
+- **THEN** `validate` reports `link_anchor_invalid`, naming the link
+
+#### Scenario: Memento of an episode refused
+- **WHEN** `record ref … --memento epi_…` is run
+- **THEN** the write is refused with exit 2
 
 ### Requirement: Episode targets resolve and are earlier
 On write, an episode `href` SHALL name an episode that exists in the workspace and was minted before the new one. In `validate`, an episode `href` that does not resolve SHALL be reported at info level (`link_unresolved`) and SHALL NOT make the episode invalid.

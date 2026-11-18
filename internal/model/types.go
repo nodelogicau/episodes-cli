@@ -140,9 +140,13 @@ const DefaultMediaType = "text/markdown"
 //
 // Canonical order: rel, href.
 type Link struct {
-	Rel   string
-	Href  string
-	Extra Extras
+	Rel  string
+	Href string
+	// Anchor is RFC 8288's anchor, in its one allowed form: the episode's
+	// own content.ref, character for character, so the link is about the
+	// referenced content rather than the episode (#15).
+	Anchor string
+	Extra  Extras
 }
 
 // Source is who recorded the episode.
