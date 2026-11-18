@@ -52,11 +52,11 @@ A reference episode SHALL carry `content.mode: ref` and `ref`, and optionally `u
 - **THEN** `validate` reports info `hash_unverified` and no error
 
 ### Requirement: The none mode
-`content: {mode: none}` SHALL be written only by `conversation start` (for the container) and `act`. It SHALL NOT carry `language` or any other content field.
+`content: {mode: none}` SHALL be written only by `conversation start`, for the container. It means a container with nothing of its own. It SHALL NOT carry `language` or any other content field.
 
 #### Scenario: Language on none refused
-- **WHEN** `act … --language en` is run
-- **THEN** the write is refused with exit 2
+- **WHEN** a `mode: none` episode carries `language: en`
+- **THEN** `validate` reports the error `language_on_none`
 
 ### Requirement: Language
 `language` SHALL be one BCP 47 tag that is well-formed under RFC 5646, written in the case RFC 5646 §2.1.1 recommends, and SHALL NOT be `und`. Tags SHALL be compared without regard to case. A tag that is not well-formed SHALL be refused on write and SHALL be an error in `validate`. No registry check SHALL be made.
@@ -68,4 +68,19 @@ A reference episode SHALL carry `content.mode: ref` and `ref`, and optionally `u
 #### Scenario: Undetermined refused
 - **WHEN** `--language und` is given
 - **THEN** the write is refused with exit 2, and the message says to leave out a language that is not known
+
+### Requirement: The attested mode
+`content: {mode: attested}` marks a self-attested act and SHALL be written only by `act`. Content with `mode: attested` SHALL carry no other key, `language` included. A writer SHALL refuse one that does, and `validate` SHALL report an error naming each extra field. Readers (`show`, `list`, `thread`, `index`) SHALL accept `attested` wherever they read `content.mode`.
+
+#### Scenario: Language on an act refused
+- **WHEN** `act … --language en` is run
+- **THEN** the write is refused with exit 2, naming mode attested
+
+#### Scenario: Extra key on attested
+- **WHEN** a hand-written episode has `content: {mode: attested, language: en}`
+- **THEN** `validate` reports the error `attested_with_content` on `content.language`
+
+#### Scenario: An act shown
+- **WHEN** `list` is run over a workspace holding an act
+- **THEN** the act is listed with `mode: attested`
 
