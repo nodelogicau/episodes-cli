@@ -165,6 +165,28 @@ is a different matter:
 Redaction removes text from the current file and from what this tool reads
 and recalls. It does not remove it from git history or from existing clones.
 
+## Which bytes `hash` covers
+
+`episodes` hashes whatever bytes you give it, so which bytes to give is up
+to you. The format fixes them by `media_type`, so that two writers recording
+the same content write the same hash:
+
+| `media_type` | Bytes to give `--hash-file` (or to hash for `--hash`) |
+|---|---|
+| `message/rfc822` | The complete raw message, headers and body, as the mailbox stores it. |
+| `text/calendar` | The iCalendar object that holds the event, as the calendar store returns it. |
+| Any other | The bytes of the content in that representation. |
+| None | The bytes `ref` returns. Give `--media-type` whenever you give a hash; `record ref` warns when you don't. |
+
+If you hold only a provider's own rendering, such as an API's JSON for a
+message, give no bytes and no hash, and give `--version` where the source has
+one. A hash of other bytes makes every later `observe --content-file` report
+the source as `changed`.
+
+A hash identifies one stored copy. Two recipients' copies of one email hash
+differently, and `uid` is the identity across them. The algorithm (`sha256`)
+and the line-ending rule (CRLF becomes LF before hashing) are unchanged.
+
 ## The uid cache
 
 `record ref --uid` (or `--message-id`) refuses a second reference episode

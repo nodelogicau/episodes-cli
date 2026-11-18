@@ -23,7 +23,7 @@ and are open. Items 17 and 18 were raised on 2026-11-14 as
 | 3 | A childless container is read as a self-attested act | settled upstream (`acts-and-containers`, [#21](https://github.com/nodelogicau/episodes/issues/21)); adopted in #8, #9 |
 | 4 | A tolerance for "nothing is recorded before it happens" | settled upstream ([#22](https://github.com/nodelogicau/episodes/issues/22)); adopted in #13 |
 | 5 | What a writer does on a second `(standpoint, media_type, uid)` | open, [#23](https://github.com/nodelogicau/episodes/issues/23) |
-| 6 | Which bytes `hash` covers, per media type | open, [#24](https://github.com/nodelogicau/episodes/issues/24) |
+| 6 | Which bytes `hash` covers, per media type | settled upstream ([#24](https://github.com/nodelogicau/episodes/issues/24)); adopted in #10 |
 | 7 | A harness recording a self-attested act should name the attesting turn | settled upstream (`acts-and-containers`, [#25](https://github.com/nodelogicau/episodes/issues/25)); adopted in #8 |
 | 8 | The validator needs a registry snapshot | settled upstream ([#26](https://github.com/nodelogicau/episodes/issues/26)); adopted in #6 |
 | 9 | Where a writer learns the zone | settled upstream ([#27](https://github.com/nodelogicau/episodes/issues/27)); adopted in #14 |

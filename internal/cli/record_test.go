@@ -823,3 +823,19 @@ func TestStatedTimeSlightlyAhead(t *testing.T) {
 	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x",
 		"--occurred", "2026-11-07T14:24:00+11:00", "--basis", "recorded", "--now", "2026-11-07T03:23:30Z")
 }
+
+// #10: a hash with no media type is taken over the bytes ref returns; the
+// write succeeds and says to give --media-type.
+func TestHashWithoutMediaTypeWarns(t *testing.T) {
+	e := newEnv(t)
+	m := e.ok("record", "ref", "--kind", "file", "--standpoint", ada, "--ref", "drive:x", "--hash", "sha256:"+strings.Repeat("ab", 32),
+		"--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if w, _ := m["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "--media-type") {
+		t.Fatal(m)
+	}
+	m = e.ok("record", "ref", "--kind", "file", "--standpoint", ada, "--ref", "drive:y", "--hash", "sha256:"+strings.Repeat("cd", 32),
+		"--media-type", "application/pdf", "--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	if _, ok := m["warnings"]; ok {
+		t.Fatal(m)
+	}
+}

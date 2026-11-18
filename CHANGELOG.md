@@ -7,6 +7,11 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **`record ref` says which bytes to hash** (#10, upstream
+  nodelogicau/episodes#24). The help text and README give the bytes for
+  each `media_type`, what to do when you hold only a provider's rendering
+  (no hash, use `--version`), and that a hash identifies one stored copy.
+  A hash given without `--media-type` is still written, with a warning.
 - **`validate` warns, rather than reporting an error, on an unregistered
   rel of registered form** (#6, upstream nodelogicau/episodes#26). A rel
   such as `answers` that has the form of a registered relation but is

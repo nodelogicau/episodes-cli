@@ -41,11 +41,15 @@ A reference episode SHALL carry `content.mode: ref` and `ref`, and optionally `u
 - **THEN** the write is refused with exit 2
 
 ### Requirement: Hash
-`--hash-file <path|->` SHALL set `hash` to `sha256:` plus the lowercase hex SHA-256 of the bytes with every CRLF replaced by LF and nothing else changed. `--hash` SHALL be accepted on write only as `sha256:<64 hex>`. Readers SHALL accept any `<algorithm>:<digest>`, and `validate` SHALL report an algorithm it does not implement as unverified (info), never as invalid.
+`--hash-file <path|->` SHALL set `hash` to `sha256:` plus the lowercase hex SHA-256 of the bytes with every CRLF replaced by LF and nothing else changed. `--hash` SHALL be accepted on write only as `sha256:<64 hex>`. Readers SHALL accept any `<algorithm>:<digest>`, and `validate` SHALL report an algorithm it does not implement as unverified (info), never as invalid. The caller supplies the bytes, and `record ref`'s help and the README SHALL state which: for `message/rfc822`, the complete raw message as the mailbox stores it; for `text/calendar`, the iCalendar object that holds the event as the store returns it; for any other media type, the bytes in that representation; with no media type, the bytes `ref` returns. A caller holding only a provider's rendering gives no hash. `record ref` SHALL warn when a hash is given without `--media-type`, and still write it.
 
 #### Scenario: CRLF normalised, whitespace kept
 - **WHEN** two files differing only in CRLF versus LF line endings are hashed
 - **THEN** the hashes are equal, and a file differing in a trailing space hashes differently
+
+#### Scenario: Hash without a media type
+- **WHEN** `record ref --hash sha256:… ` is run without `--media-type`
+- **THEN** the write succeeds and the result warns that `--media-type` should be given with a hash
 
 #### Scenario: Unknown algorithm on read
 - **WHEN** a file carries `hash: blake3:ab12…`
