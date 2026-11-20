@@ -84,14 +84,14 @@ episodes validate
 | `workspace` | Show the resolved workspace, how it was found (`flag`, `env`, `marker`, `pointer`), and its configuration. |
 | `workspace pointer [dir] [--at D] [--force]` | Write a `.episodes` pointer naming the workspace. |
 | `record inline` | Record content that has no other home: a note, or a transcript the harness made. Without `--occurred`, the time is now and the basis is `recorded`. |
-| `record ref` | Record a trace of content that lives elsewhere (`--ref`, `--uid` or `--message-id`, `--version`, `--hash` or `--hash-file`). `--occurred` and `--basis` are required. A repeated `(standpoint, media_type, uid)` is refused unless you pass `--allow-duplicate`. |
+| `record ref` | Record a trace of content that lives elsewhere (`--ref`, `--uid` or `--message-id`, `--version`, `--hash` or `--hash-file`). `--memento <uri>` (repeatable) records an archived snapshot you already made as a `memento` link anchored to `--ref`; recording never submits anything to an archive. `--occurred` and `--basis` are required. A repeated `(standpoint, media_type, uid)` is refused unless you pass `--allow-duplicate`. |
 | `conversation start` | Write a conversation container (`content: {mode: none}`) and its first turn, under one lock. |
 | `conversation turn <container>` | Append a turn. It is given the next ordinal under the lock. `--standpoint` is required on every turn. |
-| `act` | Record a self-attested act: its standpoint is `source.author` and its content is `{mode: none}`. When a harness records it, it must say how the person attested it: `--via <episode>` (the turn where they asked) or `--control` (a dedicated logging control; the caller's statement, which the binary cannot check). |
+| `act` | Record a self-attested act: its standpoint is `source.author` and its content is `{mode: attested}`, a mode that carries no other key. When a harness records it, it must say how the person attested it: `--via <episode>` (the turn where they asked) or `--control` (a dedicated logging control; the caller's statement, which the binary cannot check). |
 | `observe <id>` | Write `source_status` on a reference episode, either from `--state` or by hashing `--content-file`, or by comparing `--version`. |
-| `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. It is irreversible and never cascades, and every result says that git history still holds the text. |
+| `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. Redacting `content.ref` also removes `content.uid`, `content.version`, `content.hash` and `links`, so the tombstone no longer says where the content is, and the result names what it added. It is irreversible and never cascades, and every result says that git history still holds the text. |
 | `show <id> [--children]` | Print an episode, located by the path its id derives (the index is never read). |
-| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). |
+| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. |
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
 | `index [--check]` | Rebuild the root index from the files and write missing segments, or compare without writing. |
@@ -103,6 +103,19 @@ back to `EPISODES_AUTHOR`, `EPISODES_HARNESS` and `EPISODES_MODEL`, then to
 is required. `--now` (or `EPISODES_NOW`) is for tests only. It fixes the
 recording timestamp, the minting instant and any `occurred` the verb defaults
 to now.
+
+`--occurred` and `--end` take an RFC 9557 value, which is put in the form a
+writer writes, with a warning naming anything dropped:
+
+- an elective suffix other than the zone (`[u-ca=gregory]`) is dropped;
+- a zone whose offset contradicts the one given, or a zone this build has no
+  rules for, is left out, and the offset is written alone;
+- a critical flag (`[!…]`) is honoured: on the zone, the value is written
+  without the flag when the offset agrees, and refused when it does not or
+  the zone is unknown; on any other suffix, the value is refused.
+
+`--zone`, `EPISODES_ZONE` and `defaults.zone` apply only to a time the verb
+takes from the clock, never to a value you supply.
 
 `EPISODES_CACHE_DIR` overrides where derived caches are kept (see below).
 
@@ -152,6 +165,28 @@ is a different matter:
 Redaction removes text from the current file and from what this tool reads
 and recalls. It does not remove it from git history or from existing clones.
 
+## Which bytes `hash` covers
+
+`episodes` hashes whatever bytes you give it, so which bytes to give is up
+to you. The format fixes them by `media_type`, so that two writers recording
+the same content write the same hash:
+
+| `media_type` | Bytes to give `--hash-file` (or to hash for `--hash`) |
+|---|---|
+| `message/rfc822` | The complete raw message, headers and body, as the mailbox stores it. |
+| `text/calendar` | The iCalendar object that holds the event, as the calendar store returns it. |
+| Any other | The bytes of the content in that representation. |
+| None | The bytes `ref` returns. Give `--media-type` whenever you give a hash; `record ref` warns when you don't. |
+
+If you hold only a provider's own rendering, such as an API's JSON for a
+message, give no bytes and no hash, and give `--version` where the source has
+one. A hash of other bytes makes every later `observe --content-file` report
+the source as `changed`.
+
+A hash identifies one stored copy. Two recipients' copies of one email hash
+differently, and `uid` is the identity across them. The algorithm (`sha256`)
+and the line-ending rule (CRLF becomes LF before hashing) are unchanged.
+
 ## The uid cache
 
 `record ref --uid` (or `--message-id`) refuses a second reference episode
@@ -169,6 +204,12 @@ workspace. Deleting the cache is always safe: the next lookup rebuilds it
 from the files. The one thing it can miss is a file edited by hand to gain a
 matching uid, which breaks accumulation anyway, and `validate`, which never
 uses the cache, reports the resulting `possible_duplicate`.
+
+A redacted uid is deleted from the cache, not just ignored. `redact` removes
+it when it removes `content.uid`. A lookup that finds a cached uid its file
+no longer carries, after a redaction merged in from another clone, removes
+it then. Until that lookup runs, the uid stays in this machine's cache
+file. `episodes` doesn't keep any other value derived from episode content.
 
 ## Further reading
 

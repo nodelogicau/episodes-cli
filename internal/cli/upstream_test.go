@@ -156,7 +156,7 @@ func TestUpstream(t *testing.T) {
 		"content-language/An ill-formed tag": func(t *testing.T) {
 			e := newEnv(t)
 			id := idAt(at("2026-11-07T03:00:00Z"))
-			e.put(id, body(id, "  text: hi\n", "  language: english\n  text: hi\n"))
+			e.put(id, body(id, "  text: hi\n", "  language: en_AU\n  text: hi\n"))
 			e.expectFinding("language_invalid", "error", "content.language")
 		},
 		"content-language/A stated language": func(t *testing.T) {
@@ -328,7 +328,7 @@ func TestUpstream(t *testing.T) {
 			e := newEnv(t)
 			id := idAt(at("2026-11-07T03:00:00Z"))
 			e.put(id, body(id, "content:", "links:\n  - rel: answers\n    href: https://example.com/q\ncontent:"))
-			e.expectFinding("link_rel_invalid", "error", "links[0].rel")
+			e.expectFinding("link_rel_unregistered", "warning", "links[0].rel")
 		},
 		"episode-links/Adding a link later": func(t *testing.T) {
 			orig := &model.Episode{ID: "epi_x", Type: "episode", Kind: "note"}
@@ -508,20 +508,20 @@ func TestUpstream(t *testing.T) {
 		"self-attested-acts/Recording another person's act": func(t *testing.T) {
 			e := newEnv(t)
 			id := idAt(at("2026-11-07T03:00:00Z"))
-			e.put(id, body(id, inlineBlock, "  mode: none\n", "standpoint: "+ada, "standpoint: "+jane))
+			e.put(id, body(id, inlineBlock, "  mode: attested\n", "standpoint: "+ada, "standpoint: "+jane))
 			e.expectFinding("act_standpoint_mismatch", "error", "standpoint")
 		},
 		"self-attested-acts/Attestation by someone else": func(t *testing.T) {
 			e := newEnv(t)
 			mail := e.email(jane, "a@b", "2026-11-07T03:30:00Z").json(t)["id"].(string)
 			id := idAt(at("2026-11-07T04:00:00Z"))
-			e.put(id, body(id, inlineBlock, "  mode: none\n", "content:", "links:\n  - rel: via\n    href: "+mail+"\ncontent:"))
+			e.put(id, body(id, inlineBlock, "  mode: attested\n", "content:", "links:\n  - rel: via\n    href: "+mail+"\ncontent:"))
 			e.expectFinding("act_via_standpoint", "error", "links")
 		},
 		"self-attested-acts/The attestation was dropped": func(t *testing.T) {
 			e := newEnv(t)
 			id := idAt(at("2026-11-07T04:00:00Z"))
-			e.put(id, body(id, inlineBlock, "  mode: none\n", "content:", "links:\n  - rel: via\n    href: epi_01a1b4b2-3c1d-7e5a-9f02-6b8c4d2e1a37\ncontent:"))
+			e.put(id, body(id, inlineBlock, "  mode: attested\n", "content:", "links:\n  - rel: via\n    href: epi_01a1b4b2-3c1d-7e5a-9f02-6b8c4d2e1a37\ncontent:"))
 			e.expectFinding("link_unresolved", "info", "")
 		},
 		"self-attested-acts/A passing remark": func(t *testing.T) {

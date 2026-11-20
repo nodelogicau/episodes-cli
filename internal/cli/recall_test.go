@@ -323,6 +323,38 @@ func TestSeveralErrorsTogether(t *testing.T) {
 	}
 }
 
+// #11: a container's children are ordered by ordinal, then by id, and those
+// with no ordinal come last, by id, wherever they are shown.
+func TestChildrenOrderedByOrdinalThenID(t *testing.T) {
+	e := newEnv(t)
+	c, first := e.start("2026-11-07T03:00:00Z")
+	a := e.turn(c, ada, "2026-11-07T03:01:00Z", "--ordinal", "5")["id"].(string)
+	b := idAt(at("2026-11-07T03:02:00Z")) // shares ordinal 5, as a merge of two branches can
+	e.put(b, strings.Replace(e.file(a), a, b, 1))
+	n := e.note("2026-11-07T03:03:00Z", "--container", c) // no ordinal
+	d := e.turn(c, ada, "2026-11-07T03:04:00Z", "--ordinal", "3")["id"].(string)
+	want := []string{first, d, a, b, n}
+	ids := func(items []any) []string {
+		var out []string
+		for _, it := range items {
+			out = append(out, it.(map[string]any)["id"].(string))
+		}
+		return out
+	}
+	for _, args := range [][]string{{"list", "--container", c}, {"list", "--container", c, "--by", "ordinal"}} {
+		if got := ids(e.ok(args...)["episodes"].([]any)); strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Errorf("%v: got %v, want %v", args, got, want)
+		}
+	}
+	if got := ids(e.ok("show", c, "--children")["children"].([]any)); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("show --children: got %v, want %v", got, want)
+	}
+	if got := e.ok("list", "--container", c, "--by", "recorded")["episodes"].([]any); ids(got)[1] != a {
+		t.Errorf("--by recorded still orders by id: %v", ids(got))
+	}
+	e.fails(2, "list", "--by", "ordinal")
+}
+
 func TestOrdinalRepeatedWarning(t *testing.T) {
 	e := newEnv(t)
 	c, _ := e.start("2026-11-07T03:00:00Z")

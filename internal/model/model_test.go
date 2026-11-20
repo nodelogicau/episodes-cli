@@ -202,6 +202,18 @@ func TestRules(t *testing.T) {
 		{"zone mismatch refused", func(e *Episode) { e.Occurred.Start = "2026-11-07T14:24:00+10:00[Australia/Melbourne]" }, "zone_offset_mismatch", SevError, ForWrite},
 		{"after recording warns", func(e *Episode) { e.Occurred.End = "2026-11-07T15:24:00+11:00[Australia/Melbourne]" }, "occurred_after_recording", SevWarning, ForValidate},
 		{"after recording refused", func(e *Episode) { e.Occurred.End = "2026-11-07T15:24:00+11:00[Australia/Melbourne]" }, "occurred_after_recording", SevError, ForWrite},
+		// #13: a stated date-time may run up to five minutes ahead of the
+		// recording instant (03:24:40Z); recorded and inferred may not.
+		{"stated 30s ahead", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:25:10+11:00", Basis: BasisStated} }, "", "", ForWrite},
+		{"stated 5m ahead", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:29:40+11:00", Basis: BasisStated} }, "", "", ForValidate},
+		{"stated end within allowance", func(e *Episode) {
+			e.Occurred = Occurred{Start: "2026-11-07T14:00:00+11:00", End: "2026-11-07T14:27:00+11:00", Basis: BasisStated}
+		}, "", "", ForWrite},
+		{"stated beyond allowance warns", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:29:41+11:00", Basis: BasisStated} }, "occurred_after_recording", SevWarning, ForValidate},
+		{"stated beyond allowance refused", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:29:41+11:00", Basis: BasisStated} }, "occurred_after_recording", SevError, ForWrite},
+		{"inferred 30s ahead refused", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:25:10+11:00", Basis: BasisInferred} }, "occurred_after_recording", SevError, ForWrite},
+		{"recorded 30s ahead refused", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-07T14:25:10+11:00", Basis: BasisRecorded} }, "occurred_after_recording", SevError, ForWrite},
+		{"stated date two days ahead still warns", func(e *Episode) { e.Occurred = Occurred{Start: "2026-11-09", Basis: BasisStated} }, "occurred_after_recording", SevWarning, ForValidate},
 		{"inline without text", func(e *Episode) { e.Content.Text = nil }, "inline_without_text", SevError, ForValidate},
 		{"uid on inline", func(e *Episode) { e.Content.UID = "mid:a@b" }, "uid_on_inline", SevError, ForValidate},
 		{"text on ref", func(e *Episode) { e.Content.Mode = ModeRef; e.Content.Ref = "gmail:1"; e.Content.Derivation = "" }, "text_on_ref", SevError, ForValidate},
@@ -212,16 +224,44 @@ func TestRules(t *testing.T) {
 		{"unknown hash algorithm", func(e *Episode) { e.Content = Content{Mode: ModeRef, Ref: "f", Hash: "blake3:ab12"} }, "hash_unverified", SevInfo, ForValidate},
 		{"malformed hash", func(e *Episode) { e.Content = Content{Mode: ModeRef, Ref: "f", Hash: "nohash"} }, "hash_invalid", SevError, ForValidate},
 		{"language und", func(e *Episode) { e.Content.Language = "und" }, "language_und", SevError, ForValidate},
-		{"language english", func(e *Episode) { e.Content.Language = "english" }, "language_invalid", SevError, ForValidate},
+		{"language english warns", func(e *Episode) { e.Content.Language = "english" }, "language_unregistered", SevWarning, ForValidate},
+		{"language english written", func(e *Episode) { e.Content.Language = "english" }, "language_unregistered", SevWarning, ForWrite},
+		{"language en_AU", func(e *Episode) { e.Content.Language = "en_AU" }, "language_invalid", SevError, ForValidate},
+		{"attested alone", func(e *Episode) { e.Content = Content{Mode: ModeAttested} }, "", "", ForValidate},
+		{"language on attested", func(e *Episode) { e.Content = Content{Mode: ModeAttested, Language: "en"} }, "attested_with_content", SevError, ForValidate},
+		{"text on attested", func(e *Episode) { e.Content = Content{Mode: ModeAttested, Text: e.Content.Text} }, "attested_with_content", SevError, ForWrite},
 		{"language on none", func(e *Episode) { e.Content = Content{Mode: ModeNone, Language: "en"} }, "language_on_none", SevError, ForValidate},
 		{"bad derivation", func(e *Episode) { e.Content.Derivation = "translated" }, "invalid_derivation", SevError, ForValidate},
 		{"bad mode", func(e *Episode) { e.Content.Mode = "embedded" }, "invalid_mode", SevError, ForValidate},
 		{"no source", func(e *Episode) { e.Source = Source{Model: "x"} }, "source_missing", SevError, ForValidate},
 		{"link shape", func(e *Episode) { e.Links = []Link{{Rel: "via"}} }, "link_shape", SevError, ForValidate},
-		{"unregistered rel", func(e *Episode) { e.Links = []Link{{Rel: "answers", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForValidate},
+		{"unregistered rel warns", func(e *Episode) { e.Links = []Link{{Rel: "answers", Href: "https://x.example"}} }, "link_rel_unregistered", SevWarning, ForValidate},
+		{"unregistered rel refused on write", func(e *Episode) { e.Links = []Link{{Rel: "answers", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForWrite},
+		{"rel of neither form", func(e *Episode) { e.Links = []Link{{Rel: "Answers", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForValidate},
+		{"rel with a space", func(e *Episode) { e.Links = []Link{{Rel: "my relation", Href: "https://x.example"}} }, "link_rel_invalid", SevError, ForValidate},
 		{"uri rel", func(e *Episode) {
 			e.Links = []Link{{Rel: "https://www.w3.org/ns/activitystreams#inReplyTo", Href: "https://x.example"}}
 		}, "", "", ForValidate},
+		// #15: anchored links and memento.
+		{"anchor equals ref", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "https://web.archive.org/web/20261107031500/https://example.com/report", Anchor: "https://example.com/report"}}
+		}, "", "", ForWrite},
+		{"anchor differs from ref", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "https://web.archive.org/x", Anchor: "https://example.com/report/"}}
+		}, "link_anchor_invalid", SevError, ForValidate},
+		{"anchor on inline", func(e *Episode) {
+			e.Links = []Link{{Rel: "related", Href: "https://example.com/x", Anchor: "https://example.com/x"}}
+		}, "link_anchor_invalid", SevError, ForValidate},
+		{"memento without anchor", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "https://web.archive.org/x"}}
+		}, "memento_without_anchor", SevError, ForValidate},
+		{"memento href is an episode", func(e *Episode) {
+			e.Content = Content{Mode: ModeRef, Ref: "https://example.com/report"}
+			e.Links = []Link{{Rel: "memento", Href: "epi_01a1b4b1-8a20-7d43-b6e1-0c9f5a7d3e12", Anchor: "https://example.com/report"}}
+		}, "memento_href_invalid", SevError, ForValidate},
 		{"up to own container", func(e *Episode) {
 			e.Container = "epi_01a1b4b1-8a20-7d43-b6e1-0c9f5a7d3e12"
 			e.Links = []Link{{Rel: "up", Href: e.Container}}
@@ -288,8 +328,19 @@ func TestLanguage(t *testing.T) {
 	if !SameLanguage("EN-au", "en-AU") {
 		t.Error("case-insensitive comparison")
 	}
-	if !WellFormedLanguage("english") || LanguageProblem("english") == nil {
-		t.Error("english is well-formed under the ABNF and refused as content.language")
+	if !WellFormedLanguage("english") || LanguageProblem("english") != nil {
+		t.Error("english is well-formed under the RFC 5646 grammar and accepted as content.language")
+	}
+	if _, ok := LanguageUnregistered("english"); !ok {
+		t.Error("english: a primary subtag of seven letters is not in the registry")
+	}
+	for _, tag := range []string{"en", "zh-Hant-TW", "i-klingon", "sgn-BE-FR"} {
+		if msg, ok := LanguageUnregistered(tag); ok {
+			t.Errorf("%s: unexpected %s", tag, msg)
+		}
+	}
+	if err := LanguageProblem("en_AU"); err == nil {
+		t.Error("en_AU is ill-formed")
 	}
 	if err := LanguageProblem("und"); err == nil || !strings.Contains(err.Error(), "leave out") {
 		t.Errorf("und: %v", err)
@@ -386,5 +437,24 @@ func TestRemovePath(t *testing.T) {
 	e.RemovePath("content.text")
 	if e.Content.Text != nil {
 		t.Fatal("RemovePath")
+	}
+}
+
+// #15: a link with no anchor sorts before one with the same rel and href
+// that has one, and anchor is written after href.
+func TestAnchoredLinkOrderAndForm(t *testing.T) {
+	ls := SortLinks([]Link{
+		{Rel: "related", Href: "https://a.example", Anchor: "https://r.example"},
+		{Rel: "memento", Href: "https://w.example/2"},
+		{Rel: "related", Href: "https://a.example"},
+		{Rel: "memento", Href: "https://w.example/1", Anchor: "https://r.example"},
+	})
+	var got []string
+	for _, l := range ls {
+		got = append(got, l.Rel+" "+l.Href+" "+l.Anchor)
+	}
+	want := []string{"memento https://w.example/1 https://r.example", "memento https://w.example/2 ", "related https://a.example ", "related https://a.example https://r.example"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("got %q", got)
 	}
 }

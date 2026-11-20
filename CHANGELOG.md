@@ -7,6 +7,68 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Changed
 
+- **Anchored links and the `memento` relation** (#15, upstream change
+  `web-content`, nodelogicau/episodes#13 and #16). A link may carry RFC
+  8288's `anchor`, in one form only: the episode's own `content.ref`. Links
+  are sorted with an unanchored link before an anchored one with the same
+  `rel` and `href`. `record ref --memento <uri>` writes a `memento` link to
+  an archived snapshot you already made. Recording never archives
+  anything itself. `validate` rejects an anchor that is not `content.ref`
+  or is on an inline episode, a `memento` without an anchor, and a
+  `memento` whose `href` is an episode id.
+- **`record ref` says which bytes to hash** (#10, upstream
+  nodelogicau/episodes#24). The help text and README give the bytes for
+  each `media_type`, what to do when you hold only a provider's rendering
+  (no hash, use `--version`), and that a hash identifies one stored copy.
+  A hash given without `--media-type` is still written, with a warning.
+- **`validate` warns, rather than reporting an error, on an unregistered
+  rel of registered form** (#6, upstream nodelogicau/episodes#26). A rel
+  such as `answers` that has the form of a registered relation but is
+  missing from this build's registry snapshot is valid, with the warning
+  `link_rel_unregistered`. That way two validators carrying different
+  copies of the registry differ only in warnings. A rel of neither form
+  (`Answers`, `my relation`) is still an error. `record` still refuses an
+  unregistered rel that isn't an absolute URI.
+- **Redacting `content.ref` also redacts `uid`, `version`, `hash` and
+  `links`** (#12, upstream nodelogicau/episodes#37). Each of these could
+  lead back to the content. `redact` adds whichever the episode carries and
+  names them in its result (`added`). It does the same on any redaction of
+  an episode whose earlier block already lists `content.ref`, which repairs
+  older redactions. `validate` reports `redaction_incomplete` for each field
+  left behind. Redacting `content.uid` now deletes it from the uid cache,
+  and a lookup that finds a cached uid its file no longer carries (a
+  redaction merged in) deletes it too (nodelogicau/episodes#18).
+- **A stated time may be up to five minutes ahead of `timestamp`** (#13,
+  upstream nodelogicau/episodes#22). Mail whose `Date` header runs slightly
+  fast can now be recorded, and the time is written as stated. Beyond five
+  minutes it is still refused, and `validate` warns only beyond the
+  allowance. `recorded` and `inferred` times get no allowance, and a date
+  alone keeps its one day.
+- **RFC 9557 suffixes on input are normalised instead of refused** (#5,
+  upstream nodelogicau/episodes#28). Every verb that takes `--occurred` or
+  `--end` drops an elective suffix other than the zone, and warns. A
+  critical suffix other than the zone is refused, naming it. A critical
+  zone is checked against the offset: the value is written without the
+  flag when they agree, and refused when they don't.
+- **A zone that contradicts the offset, or one with no rules, is left
+  out** (#14, upstream nodelogicau/episodes#27). The offset is written
+  alone, with a warning, where the value used to be refused. `--zone`,
+  `EPISODES_ZONE` and `defaults.zone` still apply only to a time taken from
+  the clock.
+- **BREAKING (file output): `act` writes `content: {mode: attested}`** (#8,
+  upstream change `acts-and-containers`). Before, it wrote `{mode: none}`.
+  `attested` is a fourth content mode, and it carries no other key,
+  `language` included. Every reader accepts it. An older build reports
+  `invalid_mode` on an act written by this one. Existing files are not
+  rewritten.
+- **`validate` recognises acts by their mode, not by their shape** (#9). The
+  act rules apply to every `mode: attested` episode, even one with
+  children, and to no other episode. A `mode: none` episode with no
+  children is a container whose children are missing: it is valid whatever
+  its standpoint, and gets the warning `container_without_children` (which
+  used to be info, and only for conversations and threads). Acts written
+  with `mode: none` by an earlier build read this way. `container_later` is
+  checked only when both ids are UUIDv7.
 - **`record ref`'s duplicate lookup reads a uid cache** (#3, change
   `uid-cache`). The cache is kept outside the workspace, in the user cache
   directory (or `$EPISODES_CACHE_DIR`), keyed by `workspace.id` and the
@@ -30,6 +92,21 @@ All notable changes to `episodes` are recorded here. The format follows
   person's own act in a workspace with a default harness. The JSON result
   carries `attestation` (`via`, `control` or `author`). The episode file is
   unchanged.
+
+### Fixed
+
+- **`content.language` accepts every tag the RFC 5646 §2.1 grammar
+  accepts** (#7, upstream nodelogicau/episodes#36). A primary subtag of four
+  to eight letters, such as `english`, is no longer rejected. `record`
+  writes it, and `validate` reports it as valid with a
+  `language_unregistered` warning, because the registry holds no such
+  subtag. Ill-formed tags such as `en_AU`, and `und`, are still rejected.
+- **`list --container` lists children in the container's order** (#11,
+  upstream nodelogicau/episodes#19). That is by `ordinal`, then by id, with
+  children that have no `ordinal` last. Before, it ordered them by when they
+  occurred. `--by ordinal` names this order, and `--by occurred` and
+  `--by recorded` still work. `show --children` and `thread` already used
+  this order, and a test now pins it.
 
 ## [0.1.0] - unreleased
 

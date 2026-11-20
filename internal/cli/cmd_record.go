@@ -202,7 +202,7 @@ func (a *app) recordInlineCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				occ, err := buildOccurred(f.occ, true, c.now, zone)
+				occ, err := buildOccurred(f.occ, true, c.now, zone, &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -235,6 +235,7 @@ func (a *app) recordRefCmd() *cobra.Command {
 	var f episodeFlags
 	var act actFlags
 	var ref, uid, messageID, mediaType, version, hash, hashFile, text string
+	var mementos []string
 	var allowDup bool
 	cmd := &cobra.Command{
 		Use:   "ref --kind K --standpoint S --ref R --occurred V --basis B",
@@ -242,7 +243,22 @@ func (a *app) recordRefCmd() *cobra.Command {
 		Long: `Record a reference episode: a pointer to content that has a home elsewhere,
 with enough to stand as a record after the content is gone. It never holds
 the content's text. For a calendar event, --occurred is when the event was
-arranged (its creation time, --basis stated), never its scheduled time.`,
+arranged (its creation time, --basis stated), never its scheduled time.
+
+Which bytes to give --hash-file (or to hash for --hash), by --media-type:
+  message/rfc822  the complete raw message, headers and body, as the
+                  mailbox stores it
+  text/calendar   the iCalendar object that holds the event, as the
+                  calendar store returns it
+  any other       the bytes of the content in that representation
+  none given      the bytes --ref returns; give --media-type whenever you
+                  give a hash
+If you hold only a provider's own rendering, such as an API's JSON for a
+message, give no hash: give --version where the source has one. A hash of
+other bytes makes every later observe report the source as changed. A hash
+identifies one stored copy: two recipients' copies of one email hash
+differently, and --uid (--message-id) is the identity across them. Line
+endings are normalised CRLF to LF before hashing.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("text") {
@@ -275,8 +291,11 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 					return refusedErr("hash_invalid: %v", err)
 				}
 			}
+			if hash != "" && mediaType == "" {
+				a.warnings = append(a.warnings, "a hash was given without --media-type, so it is taken over the bytes --ref returns; give --media-type whenever you give a hash, so that every writer hashes the same bytes")
+			}
 			return a.write(act, func(c *writeCtx) (map[string]any, func(io.Writer), error) {
-				occ, err := buildOccurred(f.occ, false, c.now, "")
+				occ, err := buildOccurred(f.occ, false, c.now, "", &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -285,13 +304,26 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 					return nil, nil, err
 				}
 				ep.Content = model.Content{Mode: model.ModeRef, Ref: ref, UID: uid, Version: version, Hash: hash, MediaType: mediaType, Language: canonicalLanguage(f.language)}
+				// An archived snapshot of the referenced content, as the
+				// caller already made it: anchored to content.ref (#15).
+				// Recording never submits anything to an archive.
+				for _, m := range mementos {
+					ep.Links = append(ep.Links, model.Link{Rel: "memento", Href: m, Anchor: ref})
+				}
+				ep.Links = model.SortLinks(ep.Links)
 				if err := checkProblems(ep); err != nil {
 					return nil, nil, err
 				}
 				if uid != "" && !allowDup {
 					var cands []store.Loaded
 					for _, f := range c.ws.UIDCandidates(c.l, ep.Standpoint, mediaType, uid) {
-						cands = append(cands, c.ws.LoadFile(f))
+						ld := c.ws.LoadFile(f)
+						if ld.Err == nil && ld.Episode != nil && ld.Episode.Content.UID != uid {
+							// The file no longer carries the uid the cache
+							// derived from it: a redaction, perhaps merged in.
+							c.ws.ForgetUID(f.ID)
+						}
+						cands = append(cands, ld)
 					}
 					if ids := query.Duplicates(cands, ep.Standpoint, mediaType, uid); len(ids) > 0 {
 						return nil, nil, dupErr("duplicate: %s already record%s uid %s (%s) from standpoint %s; cite the existing episode, or pass --allow-duplicate for a distinct occurrence that shares the uid",
@@ -315,9 +347,10 @@ arranged (its creation time, --basis stated), never its scheduled time.`,
 	cmd.Flags().StringVar(&uid, "uid", "", "the content's own identifier, verbatim (an iCalendar UID); requires --media-type")
 	cmd.Flags().StringVar(&messageID, "message-id", "", "a mail Message-ID header value, written as a mid: URI")
 	cmd.Flags().StringVar(&mediaType, "media-type", "", "media type of the content (required with --uid or --message-id)")
+	cmd.Flags().StringArrayVar(&mementos, "memento", nil, "the URI of an archived snapshot of the content as it was when recorded (repeatable); written as a memento link anchored to --ref. Give one you already made: recording never submits anything to an archive")
 	cmd.Flags().StringVar(&version, "version", "", "the source's own version id (a calendar SEQUENCE or ETag, a file revision)")
-	cmd.Flags().StringVar(&hash, "hash", "", "sha256:<64 lowercase hex> of the content as fetched, CRLF normalised to LF")
-	cmd.Flags().StringVar(&hashFile, "hash-file", "", "compute the hash from the content as fetched, in a file or - for stdin")
+	cmd.Flags().StringVar(&hash, "hash", "", "sha256:<64 lowercase hex> of the bytes for --media-type (see above), CRLF normalised to LF")
+	cmd.Flags().StringVar(&hashFile, "hash-file", "", "compute the hash from the bytes for --media-type (see above), in a file or - for stdin")
 	cmd.Flags().BoolVar(&allowDup, "allow-duplicate", false, "record even though a reference episode from this standpoint already has this uid (a distinct occurrence sharing it)")
 	cmd.Flags().StringVar(&text, "text", "", "refused: a reference episode carries no text")
 	_ = cmd.Flags().MarkHidden("text")
@@ -347,7 +380,7 @@ func (a *app) conversationStartCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				occ, err := buildOccurred(f.occ, true, c.now, zone)
+				occ, err := buildOccurred(f.occ, true, c.now, zone, &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -432,7 +465,7 @@ func (a *app) conversationTurnCmd() *cobra.Command {
 				if err != nil {
 					return nil, nil, err
 				}
-				occ, err := buildOccurred(f.occ, true, c.now, zone)
+				occ, err := buildOccurred(f.occ, true, c.now, zone, &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -476,7 +509,7 @@ func (a *app) actCmd() *cobra.Command {
 		Use:   "act --occurred V --basis stated|inferred [--via epi_T | --control]",
 		Short: "Record a self-attested act: something the author did that left no record, on their explicit request",
 		Long: `Record a self-attested act. Its standpoint is the resolved source.author, its
-content is {mode: none}, and its time is when the act took place. Record one
+content is {mode: attested}, and its time is when the act took place. Record one
 only when the person explicitly asks for it, never from what is inferred.
 
 Say how it was attested. --via names the episode (usually the turn) in which
@@ -488,7 +521,7 @@ is required. An act still going on is recorded with its start and no --end.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			if f.language != "" {
-				return refusedErr("language_on_none: a self-attested act has content mode none, which carries no language")
+				return refusedErr("language_on_attested: a self-attested act has content mode attested, which carries no other key, language included")
 			}
 			if via != "" && control {
 				return usageErr("use either --via (the attestation is that episode) or --control (a dedicated control; no episode holds it), not both")
@@ -513,7 +546,7 @@ is required. An act still going on is recorded with its start and no --end.`,
 				if f.occ.basis == model.BasisRecorded {
 					return nil, nil, refusedErr("basis: an act's time is stated (the person gave it) or inferred (worked out), not recorded")
 				}
-				occ, err := buildOccurred(f.occ, false, c.now, "")
+				occ, err := buildOccurred(f.occ, false, c.now, "", &a.warnings)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -525,7 +558,7 @@ is required. An act still going on is recorded with its start and no --end.`,
 				if err != nil {
 					return nil, nil, err
 				}
-				ep.Content = model.Content{Mode: model.ModeNone}
+				ep.Content = model.Content{Mode: model.ModeAttested}
 				if err := checkProblems(ep); err != nil {
 					return nil, nil, err
 				}

@@ -114,10 +114,13 @@ const (
 	ModeInline = "inline"
 	ModeRef    = "ref"
 	ModeNone   = "none"
+	// ModeAttested marks a self-attested act: the content is the author's
+	// attestation, and carries no other key.
+	ModeAttested = "attested"
 )
 
 // Modes lists the valid content modes.
-var Modes = []string{ModeInline, ModeRef, ModeNone}
+var Modes = []string{ModeInline, ModeRef, ModeNone, ModeAttested}
 
 // Derivations of inline text.
 const (
@@ -137,9 +140,13 @@ const DefaultMediaType = "text/markdown"
 //
 // Canonical order: rel, href.
 type Link struct {
-	Rel   string
-	Href  string
-	Extra Extras
+	Rel  string
+	Href string
+	// Anchor is RFC 8288's anchor, in its one allowed form: the episode's
+	// own content.ref, character for character, so the link is about the
+	// referenced content rather than the episode (#15).
+	Anchor string
+	Extra  Extras
 }
 
 // Source is who recorded the episode.
@@ -207,6 +214,12 @@ var Redactable = []string{
 	"content.hash", "content.language", "content.ref", "content.text",
 	"content.uid", "content.version", "label", "links", "participants", "place",
 }
+
+// RefCompanions are the paths that could each lead back to referenced
+// content: a redaction that lists content.ref lists each of these the
+// episode carries too, so the tombstone no longer says where the content is
+// (#12, upstream redaction-completeness). Each stays redactable on its own.
+var RefCompanions = []string{"content.hash", "content.uid", "content.version", "links"}
 
 // IsRedactable reports whether path is in the closed set.
 func IsRedactable(path string) bool {

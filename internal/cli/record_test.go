@@ -242,7 +242,14 @@ func TestLanguage(t *testing.T) {
 	if !strings.Contains(msg, "leave out") {
 		t.Fatal(msg)
 	}
-	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x", "--language", "english")
+	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x", "--language", "en_AU")
+	// english is well-formed (a seven-letter primary subtag, #7): written,
+	// and validate warns that the registry does not hold it, without failing.
+	en := e.note("2026-11-07T03:01:00Z", "--language", "english")
+	if !strings.Contains(e.file(en), "language: english") {
+		t.Fatal(e.file(en))
+	}
+	e.expectFinding("language_unregistered", "warning", "content.language")
 	e.fails(2, "act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--language", "en")
 }
 
@@ -312,10 +319,18 @@ func TestUnknownRelOnRead(t *testing.T) {
 	if r := e.run("show", id); r.code != 0 || !strings.Contains(r.out, "fulfils") {
 		t.Fatal(r)
 	}
-	rep, code := e.validate("2026-11-08T00:00:00Z")
-	if code != 4 || finding(rep, "link_rel_invalid") == nil {
-		t.Fatal(rep)
+	// #6: of registered form, so valid with a warning.
+	f := e.expectFinding("link_rel_unregistered", "warning", "links[0].rel")
+	if !strings.Contains(f["message"].(string), "links[0]") {
+		t.Fatal(f)
 	}
+	// Neither registered form nor an absolute URI: still an error.
+	for _, rel := range []string{"Answers", `"my relation"`} {
+		e.put(id, strings.Replace(handMade(id, ""), "content:", "links:\n  - rel: "+rel+"\n    href: https://example.com/x\ncontent:", 1))
+		e.expectFinding("link_rel_invalid", "error", "links[0].rel")
+	}
+	// The write path still refuses an unregistered non-URI rel.
+	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x", "--link", "fulfils=https://example.com/x", "--now", "2026-11-08T00:00:00Z")
 }
 
 // --- object-format ---------------------------------------------------------
@@ -394,11 +409,37 @@ func indexOf(s []string, v string) int {
 	return -1
 }
 
+// #14: a zone that contradicts the offset is left out, and the offset is
+// written alone, wherever the zone came from; with the critical flag the
+// value is refused, naming the offset the zone expects.
 func TestWrongOffsetForZone(t *testing.T) {
 	e := newEnv(t)
-	_, msg := e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+10:00[Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
-	if !strings.Contains(msg, "+11:00") {
+	m := e.ok("act", "--occurred", "2026-11-07T14:24:00+10:00[Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if f := e.file(m["id"].(string)); !strings.Contains(f, `start: "2026-11-07T14:24:00+10:00"`+"\n") {
+		t.Fatal(f)
+	}
+	if w, _ := m["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "+11:00") {
+		t.Fatal(m)
+	}
+	_, msg := e.fails(2, "act", "--occurred", "2026-01-15T10:00:00+10:00[!Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if !strings.Contains(msg, "+11:00") || !strings.Contains(msg, "critical") {
 		t.Fatal(msg)
+	}
+	// A zone with no rules here is left out; with the flag, refused.
+	m = e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00[Mars/Olympus_Mons]", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	if f := e.file(m["id"].(string)); !strings.Contains(f, `start: "2026-11-07T14:24:00+11:00"`+"\n") {
+		t.Fatal(f)
+	}
+	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[!Mars/Olympus_Mons]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+}
+
+// #14's example: defaults.zone is not forced onto a recorded time whose
+// offset it contradicts.
+func TestDefaultZoneNotAppliedAgainstOffset(t *testing.T) {
+	e := newEnv(t, "--zone", mel)
+	id := e.note("2026-11-07T03:30:00Z", "--occurred", "2026-11-07T12:24:00+09:00", "--basis", "recorded")
+	if f := e.file(id); !strings.Contains(f, `start: "2026-11-07T12:24:00+09:00"`+"\n") {
+		t.Fatal(f)
 	}
 }
 
@@ -417,10 +458,38 @@ func TestDefaultTimeNoZone(t *testing.T) {
 	}
 }
 
-func TestSuffixesRefused(t *testing.T) {
+// #5: what a writer does with each RFC 9557 suffix it may not write.
+func TestSuffixesOnInput(t *testing.T) {
 	e := newEnv(t)
-	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[u-ca=gregory]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
-	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[!Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	start := func(m map[string]any) string {
+		f := e.file(m["id"].(string))
+		i := strings.Index(f, "start: ")
+		return f[i : i+strings.Index(f[i:], "\n")]
+	}
+	// An elective suffix other than the zone is dropped, the rest recorded.
+	m := e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00[Australia/Melbourne][u-ca=gregory]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if got := start(m); got != `start: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"` {
+		t.Fatal(got)
+	}
+	if w, _ := m["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "[u-ca=gregory]") {
+		t.Fatal(m)
+	}
+	// A critical suffix other than the zone is refused, naming it.
+	_, msg := e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00[!u-ca=hebrew]", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if !strings.Contains(msg, "[!u-ca=hebrew]") {
+		t.Fatal(msg)
+	}
+	// A critical zone that agrees is written without the flag.
+	m = e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00[!Australia/Melbourne]", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	if got := start(m); got != `start: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"` {
+		t.Fatal(got)
+	}
+	// The same handling applies to --end.
+	m = e.ok("act", "--occurred", "2026-11-07T14:24:00+11:00", "--end", "2026-11-07T15:00:00+11:00[u-ca=gregory]", "--basis", "stated", "--now", "2026-11-08T00:02:00Z")
+	if f := e.file(m["id"].(string)); !strings.Contains(f, `end: "2026-11-07T15:00:00+11:00"`+"\n") {
+		t.Fatal(f)
+	}
+	// --tz is for a date alone.
 	e.fails(2, "act", "--occurred", "2026-11-07T14:24:00+11:00", "--tz", mel, "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
 }
 
@@ -468,7 +537,7 @@ func TestDeepWorkLoggedAfterTheFact(t *testing.T) {
 		t.Fatal(m)
 	}
 	f := e.file(m["id"].(string))
-	for _, want := range []string{"kind: activity", "content:\n  mode: none\n", "links:\n  - rel: via\n    href: " + turn, "standpoint: " + ada, "author: " + ada} {
+	for _, want := range []string{"kind: activity", "content:\n  mode: attested\n", "links:\n  - rel: via\n    href: " + turn, "standpoint: " + ada, "author: " + ada} {
 		if !strings.Contains(f, want) {
 			t.Fatalf("missing %q:\n%s", want, f)
 		}
@@ -565,13 +634,84 @@ func TestControlWritesNoMarker(t *testing.T) {
 func TestActWithMismatchedStandpointInvalid(t *testing.T) {
 	e := newEnv(t)
 	id := idAt(at("2026-11-07T03:00:00Z"))
-	body := strings.Replace(handMade(id, ""), "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n", "content:\n  mode: none\n", 1)
+	inline := "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n"
+	body := strings.Replace(handMade(id, ""), inline, "content:\n  mode: attested\n", 1)
 	body = strings.Replace(body, "standpoint: "+ada, "standpoint: "+jane, 1)
 	e.put(id, body)
 	rep, code := e.validate("2026-11-08T00:00:00Z")
 	if code != 4 || finding(rep, "act_standpoint_mismatch") == nil {
 		t.Fatal(rep)
 	}
+	// An act with children is still an act (#9): the rules key on the mode.
+	child := idAt(at("2026-11-07T03:01:00Z"))
+	e.put(child, strings.Replace(handMade(child, ""), "content:", "container: "+id+"\ncontent:", 1))
+	if rep, code := e.validate("2026-11-08T00:00:00Z"); code != 4 || finding(rep, "act_standpoint_mismatch") == nil {
+		t.Fatal(rep)
+	}
+}
+
+// #9: the same shape with mode none is a childless container, not an act:
+// valid whatever its standpoint, with a warning. Acts written by an earlier
+// build read this way.
+func TestChildlessNoneIsNotAnAct(t *testing.T) {
+	e := newEnv(t)
+	id := idAt(at("2026-11-07T03:00:00Z"))
+	inline := "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n"
+	body := strings.Replace(handMade(id, ""), inline, "content:\n  mode: none\n", 1)
+	e.put(id, strings.Replace(body, "standpoint: "+ada, "standpoint: "+jane, 1))
+	rep, code := e.validate("2026-11-08T00:00:00Z")
+	f := finding(rep, "container_without_children")
+	if code != 0 || f == nil || f["severity"] != "warning" || f["id"] != id || finding(rep, "act_standpoint_mismatch") != nil {
+		t.Fatal(rep)
+	}
+}
+
+func TestAttestedCarriesNothingElse(t *testing.T) {
+	e := newEnv(t)
+	id := idAt(at("2026-11-07T03:00:00Z"))
+	inline := "content:\n  mode: inline\n  media_type: text/markdown\n  derivation: verbatim\n  text: hi\n"
+	e.put(id, strings.Replace(handMade(id, ""), inline, "content:\n  mode: attested\n  language: en\n", 1))
+	rep, code := e.validate("2026-11-08T00:00:00Z")
+	f := finding(rep, "attested_with_content")
+	if code != 4 || f == nil || f["field"] != "content.language" {
+		t.Fatal(rep)
+	}
+}
+
+// container_later compares ids only when both are UUIDv7 (#9).
+func TestContainerLaterOnlyBetweenUUIDv7(t *testing.T) {
+	e := newEnv(t)
+	// A non-UUIDv7 container sorts after every epi_0… id ('i' > '0'), but
+	// carries no time, so the order says nothing.
+	c := "epi_import-1"
+	e.put(c, handMade(c, ""))
+	child := idAt(at("2026-11-07T03:00:00Z"))
+	e.put(child, strings.Replace(handMade(child, ""), "content:", "container: "+c+"\ncontent:", 1))
+	rep, _ := e.validate("2026-11-08T00:00:00Z")
+	if finding(rep, "container_unresolved") != nil || finding(rep, "container_later") != nil {
+		t.Fatal(rep)
+	}
+	// Between UUIDv7 ids it is still checked.
+	late := idAt(at("2026-11-07T04:00:00Z"))
+	e.put(late, handMade(late, ""))
+	early := idAt(at("2026-11-07T03:30:00Z"))
+	e.put(early, strings.Replace(handMade(early, ""), "content:", "container: "+late+"\ncontent:", 1))
+	rep, _ = e.validate("2026-11-08T00:00:00Z")
+	if f := finding(rep, "container_later"); f == nil || f["id"] != early {
+		t.Fatal(rep)
+	}
+}
+
+// An act may be named as a container, and is listed with its mode.
+func TestActAsContainer(t *testing.T) {
+	e := newEnv(t)
+	act := e.ok("act", "--occurred", "2026-11-07T09:00:00+11:00", "--basis", "stated", "--label", "Ran the 10k", "--now", "2026-11-07T03:00:00Z")["id"].(string)
+	e.note("2026-11-07T03:01:00Z", "--container", act)
+	items := e.ok("list", "--by", "recorded")["episodes"].([]any)
+	if items[0].(map[string]any)["mode"] != "attested" {
+		t.Fatal(items)
+	}
+	e.expectValid()
 }
 
 func TestChildlessConversationContainer(t *testing.T) {
@@ -581,10 +721,10 @@ func TestChildlessConversationContainer(t *testing.T) {
 	_ = c
 	rep, _ := e.validate("2026-11-08T00:00:00Z")
 	f := finding(rep, "container_without_children")
-	if f == nil || f["severity"] != "info" || !strings.Contains(f["message"].(string), "conversation turn") {
+	if f == nil || f["severity"] != "warning" || !strings.Contains(f["message"].(string), "conversation turn") {
 		t.Fatal(rep)
 	}
-	// The act rules apply: Ada's own container passes them.
+	// Not an act: the act rules do not apply.
 	if finding(rep, "act_standpoint_mismatch") != nil {
 		t.Fatal(rep)
 	}
@@ -662,4 +802,61 @@ func TestCacheWritesNothingInWorkspace(t *testing.T) {
 	if m, _ := filepath.Glob(filepath.Join(cache, "episodes", "uid", "*.json")); len(m) != 1 {
 		t.Fatalf("cache files: %v", m)
 	}
+}
+
+// #13: mail whose Date header is thirty seconds ahead of the recording
+// instant is recorded as stated, not clamped; beyond five minutes, or for a
+// recorded time, it is still refused.
+func TestStatedTimeSlightlyAhead(t *testing.T) {
+	e := newEnv(t)
+	r := e.email(ada, "fast@clock", "2026-11-07T03:23:30Z") // occurred 03:24:00Z
+	if r.code != 0 {
+		t.Fatal(r.out, r.err)
+	}
+	if !strings.Contains(e.file(r.json(t)["id"].(string)), `start: "2026-11-07T14:24:00+11:00"`) {
+		t.Fatal("not recorded as stated")
+	}
+	e.expectValid()
+	if r := e.email(ada, "slow@clock", "2026-11-07T03:18:59Z"); r.code != 2 || !strings.Contains(r.err, "allowed for a stated time") {
+		t.Fatal(r.code, r.err)
+	}
+	e.fails(2, "record", "inline", "--kind", "note", "--standpoint", ada, "--text", "x",
+		"--occurred", "2026-11-07T14:24:00+11:00", "--basis", "recorded", "--now", "2026-11-07T03:23:30Z")
+}
+
+// #10: a hash with no media type is taken over the bytes ref returns; the
+// write succeeds and says to give --media-type.
+func TestHashWithoutMediaTypeWarns(t *testing.T) {
+	e := newEnv(t)
+	m := e.ok("record", "ref", "--kind", "file", "--standpoint", ada, "--ref", "drive:x", "--hash", "sha256:"+strings.Repeat("ab", 32),
+		"--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")
+	if w, _ := m["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "--media-type") {
+		t.Fatal(m)
+	}
+	m = e.ok("record", "ref", "--kind", "file", "--standpoint", ada, "--ref", "drive:y", "--hash", "sha256:"+strings.Repeat("cd", 32),
+		"--media-type", "application/pdf", "--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	if _, ok := m["warnings"]; ok {
+		t.Fatal(m)
+	}
+}
+
+// #15: the issue's example, byte for byte.
+func TestRecordRefMemento(t *testing.T) {
+	e := newEnv(t)
+	const report = "https://example.com/report"
+	const snap = "https://web.archive.org/web/20261107031500/https://example.com/report"
+	id := e.ok("record", "ref", "--kind", "webpage", "--standpoint", ada, "--ref", report, "--memento", snap,
+		"--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:00:00Z")["id"].(string)
+	want := "links:\n  - rel: memento\n    href: " + snap + "\n    anchor: " + report + "\ncontent:\n  mode: ref\n  ref: " + report + "\n"
+	if !strings.Contains(e.file(id), want) {
+		t.Fatal(e.file(id))
+	}
+	e.expectValid()
+	// A memento's href is a URI, never an episode id.
+	e.fails(2, "record", "ref", "--kind", "webpage", "--standpoint", ada, "--ref", report, "--memento", id,
+		"--occurred", "2026-11-07", "--basis", "stated", "--now", "2026-11-08T00:01:00Z")
+	// An anchor that is not content.ref is rejected by validate, naming the link.
+	other := idAt(at("2026-11-08T00:02:00Z"))
+	e.put(other, strings.Replace(strings.Replace(e.file(id), id, other, 1), "    anchor: "+report, "    anchor: "+report+"/", 1))
+	e.expectFinding("link_anchor_invalid", "error", "links[0].anchor")
 }

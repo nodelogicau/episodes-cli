@@ -175,6 +175,59 @@ func (v Value) WriteProblem() error {
 	return nil
 }
 
+// ForWriting turns an occurred bound given as input into the form a writer
+// writes, or says why it must be refused (#5, #14):
+//   - an elective suffix other than the zone is dropped;
+//   - a critical suffix other than the zone is refused, naming it;
+//   - a zone the writer has no rules for, or one whose offset under its rules
+//     contradicts the offset given, is left out and the offset written alone;
+//     with the critical flag either is refused instead;
+//   - a critical zone that agrees is written without the flag.
+//
+// A date alone, and a value with no suffix, are returned unchanged. notes
+// say what was dropped, for the verb to report.
+func ForWriting(raw string) (out string, notes []string, err error) {
+	v, err := Parse(raw)
+	if err != nil {
+		return "", nil, err
+	}
+	if v.DateOnly || len(v.Suffixes) == 0 {
+		return raw, nil, nil
+	}
+	for _, s := range v.Suffixes {
+		if s.Key != "" && s.Critical {
+			return "", nil, fmt.Errorf("%q carries the critical suffix %s, which this writer cannot honour; give the value without it", raw, s)
+		}
+	}
+	base := raw[:strings.IndexByte(raw, '[')]
+	for _, s := range v.Suffixes {
+		if s.Key != "" {
+			notes = append(notes, fmt.Sprintf("%s: dropped the elective suffix %s, which a writer does not write", raw, s))
+		}
+	}
+	zone := v.Zone
+	if zone != "" {
+		if _, lerr := LoadZone(zone); lerr != nil {
+			if v.ZoneCritical {
+				return "", nil, fmt.Errorf("%q: the critical zone suffix cannot be checked: %v", raw, lerr)
+			}
+			notes = append(notes, fmt.Sprintf("%s: left out the zone %s, which this writer has no rules for; the offset is written alone", raw, zone))
+			zone = ""
+		} else if aerr := v.ZoneAgreement(); aerr != nil {
+			if v.ZoneCritical {
+				return "", nil, fmt.Errorf("%v; the zone suffix is critical, so the value is refused", aerr)
+			}
+			notes = append(notes, fmt.Sprintf("%v; left out the zone and wrote the offset alone", aerr))
+			zone = ""
+		}
+	}
+	out = base
+	if zone != "" {
+		out += "[" + zone + "]"
+	}
+	return out, notes, nil
+}
+
 // ZoneAgreement checks a date-time's offset against its zone's rules at the
 // local time written. It returns nil when there is no zone, the value is in
 // UTC (Z fixes the instant and says nothing about the local offset), or the
@@ -231,6 +284,12 @@ func (v Value) End(loc *time.Location) time.Time {
 	}
 	return time.Date(v.Year, v.Month, v.Day+1, 0, 0, 0, 0, loc)
 }
+
+// StatedAllowance is how far a stated date-time may lie after the recording
+// instant: a source's clock running a little ahead, such as a mail Date
+// header, is no evidence that the event has not happened yet. It applies to
+// neither recorded nor inferred times, nor to a date alone.
+const StatedAllowance = 5 * time.Minute
 
 // AfterRecording reports whether a bound lies later than the recording
 // instant rec, as the format compares them: a date-time as the instant its

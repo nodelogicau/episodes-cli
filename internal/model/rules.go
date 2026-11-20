@@ -177,9 +177,19 @@ func (c *checker) occurred(e *Episode) {
 			continue
 		}
 		if after, by := temporal.AfterRecording(*b.v, o.TZ, rec); after {
+			// A stated date-time may run ahead of the recording instant by
+			// the allowance, for a source whose clock is a little fast (#13);
+			// it is recorded as stated, not clamped.
+			stated := o.Basis == BasisStated && !b.v.DateOnly
+			if stated && b.v.Instant.Sub(rec) <= temporal.StatedAllowance {
+				continue
+			}
 			hint := ""
+			if stated {
+				hint = fmt.Sprintf(", beyond the %s allowed for a stated time", temporal.HumanDuration(temporal.StatedAllowance))
+			}
 			if b.field == "occurred.end" {
-				hint = "; record it with its start and no end, or once it is over"
+				hint += "; record it with its start and no end, or once it is over"
 			}
 			c.soft("occurred_after_recording", b.field, "%s %q is later than the recording instant %s by %s: nothing is recorded before it happens%s", b.field, b.v.Raw, e.Timestamp, by, hint)
 		}
@@ -236,19 +246,41 @@ func (c *checker) links(e *Episode) {
 	for i, l := range e.Links {
 		field := fmt.Sprintf("links[%d]", i)
 		if len(l.Extra) > 0 || l.Rel == "" || l.Href == "" {
-			c.err("link_shape", field, "a link must have exactly rel and href (has %s)", linkKeys(l))
+			c.err("link_shape", field, "a link has rel and href, optionally anchor, and no other key (has %s)", linkKeys(l))
 			if l.Rel == "" || l.Href == "" {
 				continue
 			}
 		}
 		if err := RelProblem(l.Rel); err != nil {
-			c.err("link_rel_invalid", field+".rel", "%v", err)
+			if c.mode == ForValidate && HasRegisteredForm(l.Rel) {
+				// Registered after this build's snapshot, perhaps: every
+				// reader accepts it, so two validators differ only in warnings.
+				c.add(SevWarning, "link_rel_unregistered", field+".rel", "%s: rel %q has the form of a registered relation and is not in this build's snapshot of the IANA Link Relations registry (%s)", field, l.Rel, LinkRelationsDate)
+			} else {
+				c.err("link_rel_invalid", field+".rel", "%v", err)
+			}
 		}
 		if !IsID(l.Href) && !IsAbsoluteURI(l.Href) {
 			c.err("link_href_invalid", field+".href", "href %q is neither an episode id nor an absolute URI", l.Href)
 		}
 		if l.Href == e.ID {
 			c.err("link_href_invalid", field+".href", "an episode cannot link to itself")
+		}
+		if l.Anchor != "" {
+			switch {
+			case e.Content.Mode != ModeRef || e.Content.Ref == "":
+				c.err("link_anchor_invalid", field+".anchor", "%s has anchor %q, and an anchor appears only on an episode that carries content.ref", field, l.Anchor)
+			case l.Anchor != e.Content.Ref:
+				c.err("link_anchor_invalid", field+".anchor", "%s has anchor %q, which must equal content.ref %q character for character", field, l.Anchor, e.Content.Ref)
+			}
+		}
+		if l.Rel == "memento" {
+			if l.Anchor == "" {
+				c.err("memento_without_anchor", field, "%s is a memento link with no anchor; a memento names an archived snapshot of the referenced content, so its anchor is content.ref", field)
+			}
+			if IsID(l.Href) {
+				c.err("memento_href_invalid", field+".href", "%s: a memento's href is the archived snapshot's URI, never an episode id (%s)", field, l.Href)
+			}
 		}
 		if (l.Rel == "up" || l.Rel == "collection") && e.Container != "" && l.Href == e.Container {
 			c.soft("link_restates_container", field, "a %s link to the episode's own container restates containment; container and ordinal already say it", l.Rel)
@@ -263,6 +295,9 @@ func linkKeys(l Link) string {
 	}
 	if l.Href != "" {
 		ks = append(ks, "href")
+	}
+	if l.Anchor != "" {
+		ks = append(ks, "anchor")
 	}
 	ks = append(ks, l.Extra.Keys()...)
 	if len(ks) == 0 {
@@ -352,6 +387,24 @@ func (c *checker) content(e *Episode) {
 			c.err("none_with_content", "content", "content with mode none carries nothing else (has %s)", strings.Join(extra, ", "))
 		}
 		return
+	case ModeAttested:
+		var extra []string
+		for _, f := range []struct{ name, v string }{
+			{"ref", ct.Ref}, {"uid", ct.UID}, {"version", ct.Version}, {"hash", ct.Hash},
+			{"media_type", ct.MediaType}, {"derivation", ct.Derivation}, {"language", ct.Language},
+		} {
+			if f.v != "" {
+				extra = append(extra, f.name)
+			}
+		}
+		if ct.Text != nil {
+			extra = append(extra, "text")
+		}
+		extra = append(extra, ct.Extra.Keys()...)
+		for _, name := range extra {
+			c.err("attested_with_content", "content."+name, "content with mode attested has no other key (has %s): a self-attested act carries only its attestation", name)
+		}
+		return
 	default:
 		c.err("invalid_mode", "content.mode", "mode %q must be one of %s", ct.Mode, strings.Join(Modes, ", "))
 		return
@@ -363,8 +416,13 @@ func (c *checker) content(e *Episode) {
 				code = "language_und"
 			}
 			c.err(code, "content.language", "%v", err)
-		} else if c.mode == ForWrite && ct.Language != CanonicalLanguageCase(ct.Language) {
-			c.err("language_case", "content.language", "language %q must be written %q", ct.Language, CanonicalLanguageCase(ct.Language))
+		} else {
+			if c.mode == ForWrite && ct.Language != CanonicalLanguageCase(ct.Language) {
+				c.err("language_case", "content.language", "language %q must be written %q", ct.Language, CanonicalLanguageCase(ct.Language))
+			}
+			if msg, ok := LanguageUnregistered(ct.Language); ok {
+				c.add(SevWarning, "language_unregistered", "content.language", "%s", msg)
+			}
 		}
 	}
 }
@@ -432,6 +490,13 @@ func (c *checker) redacted(e *Episode) {
 		}
 		if e.CarriesPath(f) {
 			c.err("redaction_field_present", f, "redacted.fields lists %s, and the file still carries it", f)
+		}
+	}
+	if r.Lists("content.ref") {
+		for _, f := range RefCompanions {
+			if e.CarriesPath(f) && !r.Lists(f) {
+				c.err("redaction_incomplete", f, "redacted.fields lists content.ref, and the file still carries %s, which can lead back to the content; redact it too (`episodes redact %s --fields %s`)", f, e.ID, f)
+			}
 		}
 	}
 }

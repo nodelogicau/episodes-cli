@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -185,10 +186,12 @@ removed.`,
 			var result *model.Episode
 			var changed bool
 			var src model.Source
+			var added []string
 			err := a.writeOnly(act, func(c *writeCtx) error {
 				src = c.src
 				var err error
 				result, changed, err = c.ws.Amend(id, func(ep *model.Episode) error {
+					added = nil
 					for _, p := range paths {
 						if !ep.CarriesPath(p) && !ep.Redacted.Lists(p) {
 							return refusedErr("%s does not carry %s; redacted.fields never claims a removal that did not happen", id, p)
@@ -200,6 +203,17 @@ removed.`,
 						union = append(union, ep.Redacted.Fields...)
 						extra = ep.Redacted.Extra
 					}
+					// Redacting content.ref also redacts whatever could lead
+					// back to the content (#12), now or on a later redaction
+					// that repairs an earlier, incomplete one.
+					if slices.Contains(union, "content.ref") {
+						for _, p := range model.RefCompanions {
+							if ep.CarriesPath(p) && !slices.Contains(union, p) {
+								union = append(union, p)
+								added = append(added, p)
+							}
+						}
+					}
 					union = splitFields(union)
 					for _, p := range union {
 						ep.RemovePath(p)
@@ -210,17 +224,30 @@ removed.`,
 				if errors.Is(err, store.ErrNotFound) {
 					return notFoundErr("%v", err)
 				}
+				if err == nil && result.Redacted.Lists("content.uid") {
+					// The uid cache holds a value derived from it: delete it.
+					c.ws.ForgetUID(id)
+				}
 				return err
 			})
 			if err != nil {
 				return err
 			}
-			return a.emit(map[string]any{
+			sort.Strings(added)
+			out := map[string]any{
 				"id": id, "path": store.RelPath(id), "changed": changed, "source": sourceJSON(src),
 				"redacted": map[string]any{"timestamp": result.Redacted.Timestamp, "reason": result.Redacted.Reason, "fields": result.Redacted.Fields},
 				"notice":   GitNotice,
-			}, func(w io.Writer) {
-				fmt.Fprintf(w, "Redacted %s from %s\n%s\n", strings.Join(result.Redacted.Fields, ", "), id, GitNotice)
+			}
+			if len(added) > 0 {
+				out["added"] = added
+			}
+			return a.emit(out, func(w io.Writer) {
+				fmt.Fprintf(w, "Redacted %s from %s\n", strings.Join(result.Redacted.Fields, ", "), id)
+				if len(added) > 0 {
+					fmt.Fprintf(w, "Also redacted %s, which could lead back to the content content.ref named\n", strings.Join(added, ", "))
+				}
+				fmt.Fprintln(w, GitNotice)
 			})
 		}),
 	}

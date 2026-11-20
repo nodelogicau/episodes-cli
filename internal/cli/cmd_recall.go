@@ -123,7 +123,9 @@ func (a *app) listCmd() *cobra.Command {
 		Long: `List episodes whose occurred interval overlaps --since..--until (each a date,
 taken as the whole day, or a date-time), filtered by --standpoint, --kind and
 --container, ordered by when they occurred (--by recorded orders by id, the
-order they were recorded in). Withdrawn episodes are left out unless
+order they were recorded in). With --container the default is --by ordinal:
+the container's order, by ordinal, then by id, with children that have no
+ordinal last. Withdrawn episodes are left out unless
 --include-withdrawn. An empty result says only that no episodes were found:
 a workspace is not an exhaustive record.`,
 		Args: cobra.NoArgs,
@@ -142,8 +144,17 @@ a workspace is not an exhaustive record.`,
 				}
 				*b.dst = &v
 			}
-			if by != "occurred" && by != "recorded" {
-				return usageErr("--by must be occurred or recorded")
+			if by == "" {
+				by = "occurred"
+				if container != "" {
+					by = "ordinal"
+				}
+			}
+			switch {
+			case by == "ordinal" && container == "":
+				return usageErr("--by ordinal is the order within --container; give --container too")
+			case by != "occurred" && by != "recorded" && by != "ordinal":
+				return usageErr("--by must be occurred, recorded or ordinal")
 			}
 			ws, err := a.openWorkspace()
 			if err != nil {
@@ -165,9 +176,12 @@ a workspace is not an exhaustive record.`,
 				byID[ep.ID] = ep
 			}
 			ordered := entriesOf(eps)
-			if by == "recorded" {
+			switch by {
+			case "recorded":
 				query.SortByID(ordered)
-			} else {
+			case "ordinal":
+				query.SortChildren(ordered)
+			default:
 				query.SortByOccurred(ordered)
 			}
 			var shown []*model.Episode
@@ -202,7 +216,7 @@ a workspace is not an exhaustive record.`,
 	cmd.Flags().StringVar(&kind, "kind", "", "only episodes of this kind")
 	cmd.Flags().StringVar(&container, "container", "", "only episodes in this container")
 	cmd.Flags().BoolVar(&withdrawn, "include-withdrawn", false, "include inline episodes whose text was redacted")
-	cmd.Flags().StringVar(&by, "by", "occurred", "order by occurred (the start instant) or recorded (id)")
+	cmd.Flags().StringVar(&by, "by", "", "order by occurred (the start instant), recorded (id), or ordinal (within --container: ordinal, then id); default occurred, or ordinal with --container")
 	cmd.Flags().IntVar(&limit, "limit", 0, "at most this many")
 	return cmd
 }

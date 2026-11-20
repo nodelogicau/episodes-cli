@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"sort"
 )
 
@@ -52,6 +53,15 @@ func IsAbsoluteURI(s string) bool {
 	u, err := url.Parse(s)
 	return err == nil && u.IsAbs() && u.Opaque+u.Host+u.Path != ""
 }
+
+// relNameRe is the form RFC 8288 §2.1.1 gives a registered relation type.
+var relNameRe = regexp.MustCompile(`^[a-z][a-z0-9.-]*$`)
+
+// HasRegisteredForm reports whether rel has the form of a registered
+// relation type, whether or not this build's snapshot holds it. Whether a
+// name is registered depends on which copy of the registry a validator
+// carries, so a validator only warns on one missing from its snapshot (#6).
+func HasRegisteredForm(rel string) bool { return relNameRe.MatchString(rel) }
 
 // RelProblem is why rel is not a valid link relation: neither a lowercase
 // registered name nor an absolute URI.

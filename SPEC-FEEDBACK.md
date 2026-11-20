@@ -19,23 +19,23 @@ and are open. Items 17 and 18 were raised on 2026-11-14 as
 | # | Topic | Status |
 |---|---|---|
 | 1 | `(container, ordinal)` uniqueness and assignment | open, [#19](https://github.com/nodelogicau/episodes/issues/19) |
-| 2 | A `container` that does not resolve | open, [#20](https://github.com/nodelogicau/episodes/issues/20) |
-| 3 | A childless container is read as a self-attested act | open, [#21](https://github.com/nodelogicau/episodes/issues/21) |
-| 4 | A tolerance for "nothing is recorded before it happens" | open, [#22](https://github.com/nodelogicau/episodes/issues/22) |
+| 2 | A `container` that does not resolve | settled upstream (`acts-and-containers`, [#20](https://github.com/nodelogicau/episodes/issues/20)); adopted in #9 |
+| 3 | A childless container is read as a self-attested act | settled upstream (`acts-and-containers`, [#21](https://github.com/nodelogicau/episodes/issues/21)); adopted in #8, #9 |
+| 4 | A tolerance for "nothing is recorded before it happens" | settled upstream ([#22](https://github.com/nodelogicau/episodes/issues/22)); adopted in #13 |
 | 5 | What a writer does on a second `(standpoint, media_type, uid)` | open, [#23](https://github.com/nodelogicau/episodes/issues/23) |
-| 6 | Which bytes `hash` covers, per media type | open, [#24](https://github.com/nodelogicau/episodes/issues/24) |
-| 7 | A harness recording a self-attested act should name the attesting turn | open, [#25](https://github.com/nodelogicau/episodes/issues/25) |
-| 8 | The validator needs a registry snapshot | open, [#26](https://github.com/nodelogicau/episodes/issues/26) |
-| 9 | Where a writer learns the zone | open, [#27](https://github.com/nodelogicau/episodes/issues/27) |
-| 10 | Elective suffixes on input | open, [#28](https://github.com/nodelogicau/episodes/issues/28) |
+| 6 | Which bytes `hash` covers, per media type | settled upstream ([#24](https://github.com/nodelogicau/episodes/issues/24)); adopted in #10 |
+| 7 | A harness recording a self-attested act should name the attesting turn | settled upstream (`acts-and-containers`, [#25](https://github.com/nodelogicau/episodes/issues/25)); adopted in #8 |
+| 8 | The validator needs a registry snapshot | settled upstream ([#26](https://github.com/nodelogicau/episodes/issues/26)); adopted in #6 |
+| 9 | Where a writer learns the zone | settled upstream ([#27](https://github.com/nodelogicau/episodes/issues/27)); adopted in #14 |
+| 10 | Elective suffixes on input | settled upstream ([#28](https://github.com/nodelogicau/episodes/issues/28)); adopted in #5 |
 | 11 | Redacting a field the episode never carried | open, [#29](https://github.com/nodelogicau/episodes/issues/29) |
 | 12 | Rebuilding when a sealed segment's count is wrong | open, [#30](https://github.com/nodelogicau/episodes/issues/30) |
 | 13 | A withdrawn turn in a conversation | open, [#31](https://github.com/nodelogicau/episodes/issues/31) |
 | 14 | What immutability can be checked | open, [#32](https://github.com/nodelogicau/episodes/issues/32) |
 | 15 | A sealed month with no files | open, [#33](https://github.com/nodelogicau/episodes/issues/33) |
-| 16 | A container's standpoint | open, [#34](https://github.com/nodelogicau/episodes/issues/34) |
+| 16 | A container's standpoint | settled upstream (`acts-and-containers`, [#34](https://github.com/nodelogicau/episodes/issues/34)); adopted in #9 |
 | 17 | The `EPISODE` example's `participants` are not sorted | open, [#35](https://github.com/nodelogicau/episodes/issues/35) |
-| 18 | `english` is well-formed under the BCP 47 ABNF | open, [#36](https://github.com/nodelogicau/episodes/issues/36) |
+| 18 | `english` is well-formed under the BCP 47 ABNF | settled upstream (`tighten-canonical-form`, [#36](https://github.com/nodelogicau/episodes/issues/36)); adopted in #7 |
 
 ---
 
@@ -310,3 +310,8 @@ one place the check goes beyond the grammar.
 **Proposal.** Either use an example that is ill-formed under the ABNF (such
 as `en_AU` or `en-`), or state that a primary subtag longer than three
 letters is rejected.
+
+**Outcome.** Upstream took the first option. A well-formed tag is one that
+matches the §2.1 grammar, and a validator may warn on a subtag missing from
+the registry but must not reject it. The extra rejection is gone. `english`
+is valid with a `language_unregistered` warning (#7).

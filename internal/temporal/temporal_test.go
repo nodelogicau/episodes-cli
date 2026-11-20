@@ -237,3 +237,43 @@ func TestTimestamp(t *testing.T) {
 		t.Fatal("canonical check")
 	}
 }
+
+// ForWriting: the cases of #5 and #14.
+func TestForWriting(t *testing.T) {
+	cases := []struct {
+		in, out string
+		notes   int
+		refuse  string // substring of the error, when refused
+	}{
+		{in: "2026-11-07", out: "2026-11-07"},
+		{in: "2026-11-07T14:24:00+11:00", out: "2026-11-07T14:24:00+11:00"},
+		{in: "2026-11-07T14:24:00+11:00[Australia/Melbourne]", out: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"},
+		// #5: elective dropped; critical non-zone refused; critical zone checked.
+		{in: "2026-11-07T14:24:00+11:00[Australia/Melbourne][u-ca=gregory]", out: "2026-11-07T14:24:00+11:00[Australia/Melbourne]", notes: 1},
+		{in: "2026-11-07T14:24:00+11:00[u-ca=gregory][x-foo=bar]", out: "2026-11-07T14:24:00+11:00", notes: 2},
+		{in: "2026-11-07T14:24:00+11:00[!u-ca=hebrew]", refuse: "[!u-ca=hebrew]"},
+		{in: "2026-11-07T14:24:00+11:00[!Australia/Melbourne]", out: "2026-11-07T14:24:00+11:00[Australia/Melbourne]"},
+		{in: "2026-01-15T10:00:00+10:00[!Australia/Melbourne]", refuse: "+11:00"},
+		{in: "2026-11-07T14:24:00+11:00[!Mars/Olympus_Mons]", refuse: "cannot be checked"},
+		// #14: a contradicting or unknown zone is left out.
+		{in: "2026-11-07T12:24:00+09:00[Australia/Melbourne]", out: "2026-11-07T12:24:00+09:00", notes: 1},
+		{in: "2026-11-07T14:24:00+11:00[Mars/Olympus_Mons]", out: "2026-11-07T14:24:00+11:00", notes: 1},
+		// Z fixes the instant and says nothing of the local offset.
+		{in: "2026-11-07T03:24:00Z[Australia/Melbourne]", out: "2026-11-07T03:24:00Z[Australia/Melbourne]"},
+	}
+	for _, c := range cases {
+		out, notes, err := ForWriting(c.in)
+		if c.refuse != "" {
+			if err == nil || !strings.Contains(err.Error(), c.refuse) {
+				t.Errorf("%s: want refusal naming %q, got %q, %v", c.in, c.refuse, out, err)
+			}
+			continue
+		}
+		if err != nil || out != c.out || len(notes) != c.notes {
+			t.Errorf("%s: got %q %v %v, want %q with %d note(s)", c.in, out, notes, err, c.out, c.notes)
+		}
+		if v, _ := Parse(out); v.WriteProblem() != nil || v.ZoneAgreement() != nil {
+			t.Errorf("%s: %q is not writable", c.in, out)
+		}
+	}
+}
