@@ -22,6 +22,33 @@ refuses every other rewrite.
 > behaviour undecided, this implementation decided and recorded it in
 > [SPEC-FEEDBACK.md](SPEC-FEEDBACK.md).
 
+## Install from a release
+
+Each [release](https://github.com/nodelogicau/episodes-cli/releases) has an
+archive for darwin, linux and windows on amd64 and arm64, and a
+`checksums.txt` of their SHA-256 sums. On macOS or Linux:
+
+```sh
+VERSION=0.1.0
+OS=darwin           # or linux
+ARCH=arm64          # or amd64
+ARCHIVE=episodes_${VERSION}_${OS}_${ARCH}.tar.gz
+BASE=https://github.com/nodelogicau/episodes-cli/releases/download/v${VERSION}
+
+curl -fL -O "$BASE/$ARCHIVE" -O "$BASE/checksums.txt"
+shasum -a 256 --check --ignore-missing checksums.txt   # sha256sum on Linux
+tar -xzf "$ARCHIVE" episodes
+sudo install -m 0755 episodes /usr/local/bin/      # or anywhere on your PATH
+episodes --version
+```
+
+The binaries are not signed or notarised. If macOS refuses to run one,
+clear the quarantine flag with `xattr -d com.apple.quarantine episodes`.
+
+On Windows, download `episodes_<version>_windows_<arch>.zip`, check it with
+`Get-FileHash -Algorithm SHA256` against its line in `checksums.txt`, and
+put `episodes.exe` on your `PATH`.
+
 ## Install from source
 
 Requires Go 1.26.7 (pinned in `mise.toml`).
@@ -96,7 +123,7 @@ episodes validate
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
 | `index [--check]` | Rebuild the root index from the files and write missing segments, or compare without writing. |
-| `version` | Print the version, the format (`episodes/0.1`) and the date of the link-relation snapshot. |
+| `version` | Print the version, the format (`episodes/0.1`) and the date of the link-relation snapshot. `--version` does the same. |
 
 Every writing verb takes `--author`, `--harness` and `--model`. These fall
 back to `EPISODES_AUTHOR`, `EPISODES_HARNESS` and `EPISODES_MODEL`, then to

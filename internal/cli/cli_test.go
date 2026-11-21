@@ -391,6 +391,23 @@ func TestVersionJSON(t *testing.T) {
 	}
 }
 
+// #19: --version is the version verb, in text and JSON.
+func TestVersionFlag(t *testing.T) {
+	for _, json := range []bool{false, true} {
+		verb, flag := []string{"version"}, []string{"--version"}
+		if json {
+			verb, flag = append(verb, "--json"), append(flag, "--json")
+		}
+		v, f := execute(t, "", verb...), execute(t, "", flag...)
+		if f.code != 0 || f.out == "" || f.out != v.out || f.err != v.err {
+			t.Fatalf("json %v: --version %+v, version %+v", json, f, v)
+		}
+	}
+	if r := execute(t, "", "bogus"); r.code != 2 {
+		t.Fatalf("%+v", r)
+	}
+}
+
 // --- workspace -------------------------------------------------------------
 
 func TestFreshInit(t *testing.T) {

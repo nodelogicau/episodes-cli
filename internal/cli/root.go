@@ -162,6 +162,16 @@ episodes.yaml. At least one of author or harness is required.`,
 	root.PersistentFlags().BoolVar(&a.jsonOut, "json", false, "emit a single JSON object on stdout (errors as JSON on stderr)")
 	root.PersistentFlags().StringVar(&a.workspace, "workspace", "", "workspace directory (default: $"+store.EnvWorkspace+", else the nearest ancestor with episodes.yaml or a .episodes pointer)")
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error { return usageErr("%v", err) })
+	// --version is the version verb, --json included. Without it the root
+	// prints its help, as it did with no RunE.
+	showVersion := root.Flags().Bool("version", false, "print the version, as the version verb does")
+	root.Args = cobra.NoArgs
+	root.RunE = func(cmd *cobra.Command, args []string) error {
+		if *showVersion {
+			return a.printVersion()
+		}
+		return cmd.Help()
+	}
 	root.CompletionOptions.DisableDefaultCmd = true
 
 	root.AddCommand(
@@ -188,10 +198,12 @@ func (a *app) versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print the binary version, the format it implements, and its link-relation snapshot date",
 		Args:  cobra.NoArgs,
-		RunE: a.run(func(cmd *cobra.Command, args []string) error {
-			return a.emit(map[string]any{"version": version, "format": model.Format, "link_relations": model.LinkRelationsDate}, func(w io.Writer) {
-				fmt.Fprintf(w, "episodes %s (%s; IANA link relations as of %s)\n", version, model.Format, model.LinkRelationsDate)
-			})
-		}),
+		RunE:  a.run(func(cmd *cobra.Command, args []string) error { return a.printVersion() }),
 	}
+}
+
+func (a *app) printVersion() error {
+	return a.emit(map[string]any{"version": version, "format": model.Format, "link_relations": model.LinkRelationsDate}, func(w io.Writer) {
+		fmt.Fprintf(w, "episodes %s (%s; IANA link relations as of %s)\n", version, model.Format, model.LinkRelationsDate)
+	})
 }
