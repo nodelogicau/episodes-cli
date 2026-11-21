@@ -533,22 +533,25 @@ func contains(s []string, v string) bool {
 	return false
 }
 
-// upsert applies one create to the index under the lock: it seals any month
-// the new id's month seals, writing each such month's segment from its files
-// with their count, and upserts the new entry into the root. A root that
+// upsert applies creates to the index under the lock: it seals any month
+// the new ids' months seal, writing each such month's segment from its files
+// with their count, and upserts the new entries into the root. A root that
 // cannot be read is rebuilt from the files instead. When nothing seals and
-// the new id sorts last, the entry is appended to the root's bytes without
-// parsing the rest, which gives the same bytes (spliceable).
-func (w *Workspace) upsert(l *Listing, e Entry) error {
+// every new id sorts after the root's last entry, the entries are appended
+// to the root's bytes without parsing the rest, which gives the same bytes
+// (spliceable). A batch takes the same path as one create, once.
+func (w *Workspace) upsert(l *Listing, es ...Entry) error {
+	es = append([]Entry(nil), es...)
+	sortEntries(es)
 	if !forceFullUpsert {
 		if data, err := os.ReadFile(w.Abs(IndexFile)); err == nil {
-			if tail, ok := spliceable(data, e, l); ok {
+			if tail, ok := spliceable(data, es, l); ok {
 				fastUpserts++
 				return writeAtomic(w.Abs(IndexFile), append(data, tail...))
 			}
 		}
 	}
-	return w.fullUpsert(l, e)
+	return w.fullUpsert(l, es)
 }
 
 // forceFullUpsert makes every upsert take the full path; tests set it to
@@ -560,8 +563,12 @@ var fastUpserts int
 
 // entryBytes is one entry exactly as EncodeRoot writes it inside a block
 // sequence of entries.
-func entryBytes(e Entry) ([]byte, error) {
-	one, err := EncodeRoot(&Root{Format: model.Format, Entries: []Entry{e}})
+func entryBytes(e Entry) ([]byte, error) { return entriesBytes([]Entry{e}) }
+
+// entriesBytes is a run of entries, in id order, exactly as EncodeRoot
+// writes them inside a block sequence of entries.
+func entriesBytes(es []Entry) ([]byte, error) {
+	one, err := EncodeRoot(&Root{Format: model.Format, Entries: es})
 	if err != nil {
 		return nil, err
 	}
@@ -576,12 +583,13 @@ var conflictMarkers = [][]byte{[]byte("<<<<<<<"), []byte("======="), []byte(">>>
 
 const entryLead = "\n  - id: "
 
-// spliceable decides, from the root's bytes alone, whether appending e's
-// encoded entry gives exactly what fullUpsert would write, and returns that
-// entry's bytes when it does (design D2 of fast-index-upsert). It parses only
-// the root's head (format and segments), never its entries.
-func spliceable(data []byte, e Entry, l *Listing) ([]byte, bool) {
-	if len(data) == 0 || data[len(data)-1] != '\n' {
+// spliceable decides, from the root's bytes alone, whether appending the
+// encoded entries es (sorted by id) gives exactly what fullUpsert would
+// write, and returns those entries' bytes when it does (design D2 of
+// fast-index-upsert, D3 of bulk-import). It parses only the root's head
+// (format and segments), never its entries.
+func spliceable(data []byte, es []Entry, l *Listing) ([]byte, bool) {
+	if len(es) == 0 || len(data) == 0 || data[len(data)-1] != '\n' {
 		return nil, false
 	}
 	for _, m := range conflictMarkers {
@@ -616,7 +624,7 @@ func spliceable(data []byte, e Entry, l *Listing) ([]byte, bool) {
 		}
 	}
 	// The first entry is open (so nothing is dropped) and the last sorts
-	// before the new id (so the new entry goes last).
+	// before the new ids (so the new entries go last, in order).
 	first := lineAt(body, len(entryLead)-1)
 	lastAt := bytes.LastIndex(data, []byte(entryLead))
 	if lastAt < 0 {
@@ -626,10 +634,15 @@ func spliceable(data []byte, e Entry, l *Listing) ([]byte, bool) {
 	if fm, ok := IDMonth(first); !ok || !l.Months.Open(fm) {
 		return nil, false
 	}
-	if last == "" || last >= e.ID {
+	if last == "" || last >= es[0].ID {
 		return nil, false
 	}
-	tail, err := entryBytes(e)
+	for i := 1; i < len(es); i++ {
+		if es[i-1].ID >= es[i].ID {
+			return nil, false
+		}
+	}
+	tail, err := entriesBytes(es)
 	if err != nil {
 		return nil, false
 	}
@@ -648,24 +661,28 @@ func lineAt(data []byte, i int) string {
 	return string(data[i : i+end])
 }
 
-// fullUpsert parses the root, seals what the create seals, adds the entry and
-// re-encodes the whole root.
-func (w *Workspace) fullUpsert(l *Listing, e Entry) error {
+// fullUpsert parses the root, seals what the creates seal, adds the entries
+// and re-encodes the whole root.
+func (w *Workspace) fullUpsert(l *Listing, es []Entry) error {
 	root, _, err := w.ReadRoot()
 	if err != nil {
 		_, err := w.Rebuild()
 		return err
 	}
 	root.Format = model.Format
-	m, ok := IDMonth(e.ID)
-	if !ok {
-		// Writers mint only UUIDv7, so a legacy entry reaches the index only
-		// through a rebuild.
-		_, err := w.Rebuild()
-		return err
-	}
 	next := l.Months
-	next.See(m)
+	adding := make(map[string]bool, len(es))
+	for _, e := range es {
+		m, ok := IDMonth(e.ID)
+		if !ok {
+			// Writers mint only UUIDv7, so a legacy entry reaches the index
+			// only through a rebuild.
+			_, err := w.Rebuild()
+			return err
+		}
+		next.See(m)
+		adding[e.ID] = true
+	}
 	listed := map[string]bool{}
 	for _, s := range root.Segments {
 		listed[s.Path] = true
@@ -699,7 +716,7 @@ func (w *Workspace) fullUpsert(l *Listing, e Entry) error {
 	sortRefs(root.Segments)
 	keep := root.Entries[:0]
 	for _, x := range root.Entries {
-		if x.ID == e.ID {
+		if adding[x.ID] {
 			continue
 		}
 		if xm, ok := IDMonth(x.ID); ok && !next.Open(xm) {
@@ -707,6 +724,13 @@ func (w *Workspace) fullUpsert(l *Listing, e Entry) error {
 		}
 		keep = append(keep, x)
 	}
-	root.Entries = append(keep, e)
+	// A batch can seal the month of its own earlier entries, whose segment
+	// was just written from their files.
+	for _, e := range es {
+		if m, _ := IDMonth(e.ID); next.Open(m) {
+			keep = append(keep, e)
+		}
+	}
+	root.Entries = keep
 	return w.writeRoot(root)
 }

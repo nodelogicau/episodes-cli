@@ -274,7 +274,13 @@ func (w *Workspace) Exists(id string) bool {
 // into place. A link fails rather than overwrite, and either the whole file
 // appears or none of it does.
 func writeExclusive(path string, data []byte) error {
-	tmp, err := writeTemp(path, data)
+	return writeExclusiveWith(path, data, (*os.File).Sync)
+}
+
+// writeExclusiveWith is writeExclusive with the temporary file made durable
+// by sync, which a batch uses to defer the device flush to its barrier.
+func writeExclusiveWith(path string, data []byte, sync func(*os.File) error) error {
+	tmp, err := writeTemp(path, data, sync)
 	if err != nil {
 		return err
 	}
@@ -290,7 +296,7 @@ func writeExclusive(path string, data []byte) error {
 
 // writeAtomic replaces path with data via a temporary file and a rename.
 func writeAtomic(path string, data []byte) error {
-	tmp, err := writeTemp(path, data)
+	tmp, err := writeTemp(path, data, (*os.File).Sync)
 	if err != nil {
 		return err
 	}
@@ -301,7 +307,7 @@ func writeAtomic(path string, data []byte) error {
 	return nil
 }
 
-func writeTemp(path string, data []byte) (string, error) {
+func writeTemp(path string, data []byte, sync func(*os.File) error) (string, error) {
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
 	if err != nil {
 		return "", err
@@ -312,7 +318,7 @@ func writeTemp(path string, data []byte) (string, error) {
 		_ = os.Remove(name)
 		return "", err
 	}
-	if err := f.Sync(); err != nil {
+	if err := sync(f); err != nil {
 		_ = f.Close()
 		_ = os.Remove(name)
 		return "", err

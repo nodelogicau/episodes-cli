@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -114,8 +115,8 @@ func (a *app) showCmd() *cobra.Command {
 }
 
 func (a *app) listCmd() *cobra.Command {
-	var since, until, standpoint, kind, container, by string
-	var withdrawn bool
+	var since, until, standpoint, kind, container, by, fields string
+	var withdrawn, ndjson bool
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -127,7 +128,17 @@ order they were recorded in). With --container the default is --by ordinal:
 the container's order, by ordinal, then by id, with children that have no
 ordinal last. Withdrawn episodes are left out unless
 --include-withdrawn. An empty result says only that no episodes were found:
-a workspace is not an exhaustive record.`,
+a workspace is not an exhaustive record.
+
+--ndjson streams one JSON object per episode per line, in id order (--by
+recorded) unless --by says otherwise; --by occurred and --by ordinal hold
+the matching index entries, not the episodes, until they are sorted.
+--fields full (the default) writes whole episodes. --fields index writes
+only the seven indexed fields (id, kind, occurred, container, ordinal,
+standpoint, timestamp) and path, and opens no episode file the index
+already covers, so it is fast over a large workspace; it cannot tell a
+withdrawn episode from any other, and lists withdrawn episodes too. Use
+--fields full to leave them out.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			f := query.Filter{Standpoint: standpoint, Kind: kind, Container: container}
@@ -144,9 +155,22 @@ a workspace is not an exhaustive record.`,
 				}
 				*b.dst = &v
 			}
+			switch {
+			case ndjson && a.jsonOut:
+				return usageErr("use either --json or --ndjson, not both")
+			case fields != "" && !ndjson:
+				return usageErr("--fields chooses what --ndjson writes; give --ndjson too")
+			case fields == "":
+				fields = "full"
+			case fields != "full" && fields != "index":
+				return usageErr("--fields must be full or index")
+			}
 			if by == "" {
 				by = "occurred"
-				if container != "" {
+				switch {
+				case ndjson:
+					by = "recorded"
+				case container != "":
 					by = "ordinal"
 				}
 			}
@@ -163,6 +187,9 @@ a workspace is not an exhaustive record.`,
 			l, err := ws.Scan()
 			if err != nil {
 				return err
+			}
+			if ndjson {
+				return a.listNDJSON(ws, l, f, by, fields == "index", withdrawn, limit)
 			}
 			var entries []store.Entry
 			if container != "" {
@@ -218,7 +245,96 @@ a workspace is not an exhaustive record.`,
 	cmd.Flags().BoolVar(&withdrawn, "include-withdrawn", false, "include inline episodes whose text was redacted")
 	cmd.Flags().StringVar(&by, "by", "", "order by occurred (the start instant), recorded (id), or ordinal (within --container: ordinal, then id); default occurred, or ordinal with --container")
 	cmd.Flags().IntVar(&limit, "limit", 0, "at most this many")
+	cmd.Flags().BoolVar(&ndjson, "ndjson", false, "stream one JSON object per episode per line (not with --json); default order --by recorded")
+	cmd.Flags().StringVar(&fields, "fields", "", "with --ndjson: full (whole episodes, the default) or index (the seven indexed fields and path, no file opened that the index covers, withdrawn episodes included)")
 	return cmd
+}
+
+// indexItem is one index entry as list --ndjson --fields index writes it.
+func indexItem(e store.Entry, rel string) map[string]any {
+	m := map[string]any{"id": e.ID, "kind": e.Kind, "occurred": occurredJSON(e.Occurred),
+		"standpoint": e.Standpoint, "timestamp": e.Timestamp, "path": rel}
+	if e.Container != "" {
+		m["container"] = e.Container
+	}
+	if e.Ordinal != nil {
+		m["ordinal"] = *e.Ordinal
+	}
+	return m
+}
+
+// listNDJSON streams list's result one line per episode (design D6 of
+// bulk-import). In id order nothing is held but the listing and the index
+// of the month being read; another order holds the matching entries.
+// Entries are filtered first, and with --fields full each survivor's file
+// is parsed, filtered again on what it says, and written at once.
+func (a *app) listNDJSON(ws *store.Workspace, l *store.Listing, f query.Filter, by string, index, withdrawn bool, limit int) error {
+	enc := json.NewEncoder(a.stdout)
+	enc.SetEscapeHTML(false)
+	n := 0
+	errLimit := errors.New("limit reached")
+	emit := func(e store.Entry, file store.FileRef) error {
+		if index {
+			if err := enc.Encode(indexItem(e, file.Rel)); err != nil {
+				return err
+			}
+		} else {
+			ld := ws.LoadFile(file)
+			if ld.Err != nil || ld.Episode.ID != e.ID || !f.Match(store.EntryFor(ld.Episode)) {
+				return nil
+			}
+			if ld.Episode.Withdrawn() && !withdrawn {
+				return nil
+			}
+			if err := enc.Encode(episodeJSON(ld.Episode)); err != nil {
+				return err
+			}
+		}
+		if n++; limit > 0 && n == limit {
+			return errLimit
+		}
+		return nil
+	}
+	minMonth, hasMin := 0, false
+	if f.Container != "" {
+		minMonth, hasMin = store.IDMonth(f.Container)
+	}
+	type held struct {
+		e    store.Entry
+		file store.FileRef
+	}
+	var buf []held
+	err := ws.EachEntry(l, minMonth, hasMin, func(e store.Entry, file store.FileRef) error {
+		if file.Misplaced() || !f.Match(e) {
+			return nil
+		}
+		if by == "recorded" {
+			return emit(e, file)
+		}
+		buf = append(buf, held{e, file})
+		return nil
+	})
+	if err == nil && by != "recorded" {
+		es := make([]store.Entry, len(buf))
+		files := make(map[string]store.FileRef, len(buf))
+		for i, h := range buf {
+			es[i], files[h.e.ID] = h.e, h.file
+		}
+		if by == "ordinal" {
+			query.SortChildren(es)
+		} else {
+			query.SortByOccurred(es)
+		}
+		for _, e := range es {
+			if err = emit(e, files[e.ID]); err != nil {
+				break
+			}
+		}
+	}
+	if errors.Is(err, errLimit) {
+		return nil
+	}
+	return err
 }
 
 func (a *app) threadCmd() *cobra.Command {
