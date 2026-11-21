@@ -1,5 +1,5 @@
 # Origin: nodelogicau/intentions-cli .goreleaser.yaml @ b72a395454aa
-# (universal binary, desktop bundle and Homebrew cask dropped: follow-ons)
+# (universal binary and desktop bundle dropped: episodes has no desktop bundle)
 version: 2
 
 project_name: episodes
@@ -40,3 +40,36 @@ archives:
 
 checksum:
   name_template: checksums.txt
+
+# Homebrew cask (macOS and Linux), published to the same tap as particulars
+# and intentions. `brews` was removed in GoReleaser 2.16; casks are the
+# supported way to ship a pre-built binary.
+homebrew_casks:
+  - name: episodes
+    repository:
+      owner: nodelogicau
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: https://github.com/nodelogicau/episodes-cli
+    description: Write and check Episodes Format workspaces from the command line
+    license: MIT
+    skip_upload: auto
+    commit_author:
+      name: episodes-release
+      email: noreply@nodelogic.au
+    url:
+      verified: github.com/nodelogicau/episodes-cli/
+    binaries:
+      - episodes
+    # The binaries are not signed or notarised. Homebrew deprecated
+    # `postflight`, which hooks.post.install generates, for the declarative
+    # `postflight_steps`. The block is a Go template, so Homebrew's own
+    # {{staged_path}} placeholder is escaped to pass through.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/episodes"]
+        end
+      end

@@ -1,5 +1,4 @@
 # Origin: nodelogicau/intentions-cli .github/workflows/release.yml @ b72a395454aa
-# (Homebrew tap token dropped: the cask is a follow-on)
 name: Release
 
 on:
@@ -27,3 +26,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Organisation secret: a fine-grained PAT with contents:write on
+          # nodelogicau/homebrew-tap; the default token cannot push across
+          # repositories.
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

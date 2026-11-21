@@ -22,6 +22,19 @@ refuses every other rewrite.
 > behaviour undecided, this implementation decided and recorded it in
 > [SPEC-FEEDBACK.md](SPEC-FEEDBACK.md).
 
+## Install with Homebrew
+
+On macOS or Linux, from the same tap as `particulars` and `intentions`:
+
+```sh
+brew install nodelogicau/tap/episodes
+brew upgrade nodelogicau/tap/episodes   # later, for a new release
+```
+
+The cask installs the release archive for your platform, checked against
+its SHA-256 sum, and clears macOS's quarantine flag from the binary, since
+it is not signed or notarised.
+
 ## Install from a release
 
 Each [release](https://github.com/nodelogicau/episodes-cli/releases) has an
