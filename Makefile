@@ -1,4 +1,4 @@
-# Origin: nodelogicau/intentions-cli Makefile @ b72a395454aa (binary and module renamed; skill and bundle targets dropped)
+# Origin: nodelogicau/intentions-cli Makefile @ b72a395454aa (binary and module renamed; skill target dropped)
 BINARY  := episodes
 MODULE  := github.com/nodelogicau/episodes-cli
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -7,7 +7,7 @@ DIST    := dist
 
 export CGO_ENABLED := 0
 
-.PHONY: all build test lint fmt vet cross clean tidy
+.PHONY: all build test lint fmt vet cross clean tidy bundle
 
 all: build
 
@@ -39,6 +39,10 @@ cross:
 		echo "  $$out"; \
 		GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags '$(LDFLAGS)' -o $$out ./cmd/episodes || exit 1; \
 	done
+
+# Claude Desktop extension (.mcpb) from the cross-compiled binaries.
+bundle: cross
+	sh scripts/build-bundle.sh $(VERSION) $(DIST)
 
 clean:
 	rm -rf $(DIST)
