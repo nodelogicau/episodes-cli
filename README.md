@@ -120,6 +120,7 @@ episodes validate
 | `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. Redacting `content.ref` also removes `content.uid`, `content.version`, `content.hash` and `links`, so the tombstone no longer says where the content is, and the result names what it added. It is irreversible and never cascades, and every result says that git history still holds the text. |
 | `show <id> [--children]` | Print an episode, located by the path its id derives (the index is never read). |
 | `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. `--ndjson` streams one episode per line instead (see [Streaming](#streaming-list---ndjson)). |
+| `query <text>` | Find episodes whose `label` or inline text contains any of the query's terms, under Unicode case folding, or whose `content.uid` equals a term exactly. There is no model, cache or index (see [Recall by query](#recall-by-query)). Takes `list`'s filters, plus `--participant` and `--limit`. |
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
 | `index [--check]` | Rebuild the root index from the files and write missing segments, or compare without writing. |
@@ -221,6 +222,48 @@ failed, 2 when any line did, and 1 on an I/O failure, after the result.
 
 Every decoded line is held in memory until the check is done, which suits
 batches of about 10,000 lines. Split far larger ones.
+
+## Recall by query
+
+`episodes query <text>` follows the format's model-free baseline, so two
+implementations give the same results in the same order:
+
+- Whitespace (Unicode `White_Space`) is trimmed from the query's edges, and
+  its terms are its runs of non-whitespace. Leading and trailing punctuation
+  (Unicode category P) is stripped from each term and from the whole query.
+  Punctuation inside a term stays, so `timeout?` becomes `timeout` while
+  `e-mail`, `o'brien` and `auth/session` are kept whole. A query left empty,
+  such as `?!`, finds nothing and is not an error.
+- An episode matches when the whole query, or any one term, occurs in its
+  `label` or, for an inline episode, its `content.text`, under full Unicode
+  case folding (`straße` matches `STRASSE`). The content of a reference
+  episode is not searched, and nor are `participants`. There is no stemming
+  and there are no stopwords, so `dog's` does not find "the dog barked".
+- A term that equals an episode's `content.uid`, before or after trimming,
+  exactly and with no folding, also matches it, so `mid:abc@example.com`
+  finds its mail.
+
+Each result carries `resolution` (`uid` when a term equalled the uid, else
+`lexical`) and `matched` (how many distinct terms matched, compared under
+case folding). Results are ordered by resolution, then by `matched`, most
+first, then by id, newest first. `--limit` cuts the ordered list. A container
+is a result only when it matched itself, not through its children. Each
+result carries its `container`, so results can be grouped by conversation.
+
+```sh
+episodes query "invoice ada" --since 2026-11-01 --limit 5
+episodes query "mid:abc@example.com" --json
+episodes query invoice --participant mailto:alex@example.org
+```
+
+`--since`, `--until`, `--standpoint`, `--kind` and `--container` mean what
+they mean for `list`. `--participant` keeps episodes whose `participants`
+include the reference exactly as written: `mailto:Alex@example.org` does not
+match `mailto:alex@example.org`. A withdrawn episode is never returned, and a
+redacted field never matches. Nothing derived from content is kept anywhere,
+so there is nothing for `redact` to clear. Every file the filters leave is
+read, so a query over 20,000 episodes takes about a second. Narrowing it by
+standpoint, kind or time cuts that in proportion.
 
 ## Streaming (`list --ndjson`)
 

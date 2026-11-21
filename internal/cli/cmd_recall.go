@@ -51,6 +51,26 @@ func recall(ws *store.Workspace, l *store.Listing, entries []store.Entry, f quer
 	return out
 }
 
+// recallFilter is the index-field filter list and query share: --since and
+// --until parsed as dates (whole days) or date-times.
+func recallFilter(since, until, standpoint, kind, container string) (query.Filter, error) {
+	f := query.Filter{Standpoint: standpoint, Kind: kind, Container: container}
+	for _, b := range []struct {
+		flag, v string
+		dst     **temporal.Value
+	}{{"--since", since, &f.Since}, {"--until", until, &f.Until}} {
+		if b.v == "" {
+			continue
+		}
+		v, err := temporal.Parse(b.v)
+		if err != nil {
+			return f, usageErr("%s: %v", b.flag, err)
+		}
+		*b.dst = &v
+	}
+	return f, nil
+}
+
 func entriesOf(eps []*model.Episode) []store.Entry {
 	out := make([]store.Entry, len(eps))
 	for i, ep := range eps {
@@ -141,19 +161,9 @@ withdrawn episode from any other, and lists withdrawn episodes too. Use
 --fields full to leave them out.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
-			f := query.Filter{Standpoint: standpoint, Kind: kind, Container: container}
-			for _, b := range []struct {
-				flag, v string
-				dst     **temporal.Value
-			}{{"--since", since, &f.Since}, {"--until", until, &f.Until}} {
-				if b.v == "" {
-					continue
-				}
-				v, err := temporal.Parse(b.v)
-				if err != nil {
-					return usageErr("%s: %v", b.flag, err)
-				}
-				*b.dst = &v
+			f, err := recallFilter(since, until, standpoint, kind, container)
+			if err != nil {
+				return err
 			}
 			switch {
 			case ndjson && a.jsonOut:
