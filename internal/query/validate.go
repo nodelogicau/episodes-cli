@@ -123,10 +123,14 @@ func rank(s model.Severity) int {
 }
 
 // clock reports broken clocks: an id or timestamp later than now, and an id
-// two or more months after the current month.
+// two or more months after the current month. Now from the clock is whole
+// seconds but ids are minted to the millisecond, so an id is compared at the
+// second it was minted in: one minted at 04:42:48.6 is not later than a now
+// of 04:42:48 (#28). Timestamps are written at whole seconds already.
 func (v *validator) clock(ep *model.Episode, f store.FileRef) {
 	now := v.in.Now
 	if t, ok := model.MintedAt(ep.ID); ok {
+		t = t.Truncate(time.Second)
 		if store.MonthOfTime(t) >= store.MonthOfTime(now)+2 {
 			v.add(model.SevError, "id_far_future", ep.ID, f.Rel, "id", "id %s was minted in %s, two or more months after the current month %s; it would seal the month every correct writer mints into",
 				ep.ID, t.Format("2006-01"), now.UTC().Format("2006-01"))

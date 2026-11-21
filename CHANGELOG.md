@@ -5,6 +5,14 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`validate` no longer warns `id_from_future` on an episode written in the
+  same second** (#28). Now from the clock is whole seconds, but ids are
+  minted to the millisecond, so `record` followed at once by `validate`
+  could report a broken clock. An id is now compared at the second it was
+  minted in.
+
 ## [0.2.0] - 2026-11-21
 
 Recall by free text, and installing with Homebrew.
