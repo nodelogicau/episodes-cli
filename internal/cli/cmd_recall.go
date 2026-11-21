@@ -57,7 +57,7 @@ func recall(ws *store.Workspace, l *store.Listing, entries []store.Entry, f quer
 // reckoned in the reader's zone (readerZone), whose name is returned for the
 // result to report; zone is "" when neither bound is a date alone, and --tz
 // then is a usage error (filter-dates-in-zone D2, D4).
-func recallFilter(ws *store.Workspace, since, until, tz, standpoint, kind, container string) (f query.Filter, zone string, err error) {
+func (a *app) recallFilter(ws *store.Workspace, since, until, tz, standpoint, kind, container string) (f query.Filter, zone string, err error) {
 	f = query.Filter{Standpoint: standpoint, Kind: kind, Container: container}
 	dateAlone := false
 	for _, b := range []struct {
@@ -80,7 +80,7 @@ func recallFilter(ws *store.Workspace, since, until, tz, standpoint, kind, conta
 		}
 		return f, "", nil
 	}
-	if f.Loc, zone, err = readerZone(ws, tz); err != nil {
+	if f.Loc, zone, err = a.readerZone(ws, tz); err != nil {
 		return f, "", err
 	}
 	return f, zone, nil
@@ -213,7 +213,7 @@ withdrawn episode from any other, and lists withdrawn episodes too. Use
 			if err != nil {
 				return err
 			}
-			f, zone, err := recallFilter(ws, since, until, tz, standpoint, kind, container)
+			f, zone, err := a.recallFilter(ws, since, until, tz, standpoint, kind, container)
 			if err != nil {
 				return err
 			}

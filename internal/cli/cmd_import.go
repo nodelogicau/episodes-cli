@@ -595,11 +595,11 @@ is held in memory until the check is done.`,
 			if err != nil {
 				return err
 			}
-			now, fixed, err := resolveNow(act)
+			now, fixed, err := a.resolveNow(act)
 			if err != nil {
 				return err
 			}
-			z, err := zoneFor(ws, zone)
+			z, err := a.zoneFor(ws, zone)
 			if err != nil {
 				return err
 			}
