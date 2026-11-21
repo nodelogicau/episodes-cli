@@ -42,7 +42,7 @@ archive for darwin, linux and windows on amd64 and arm64, and a
 `checksums.txt` of their SHA-256 sums. On macOS or Linux:
 
 ```sh
-VERSION=0.2.0
+VERSION=0.3.0
 OS=darwin           # or linux
 ARCH=arm64          # or amd64
 ARCHIVE=episodes_${VERSION}_${OS}_${ARCH}.tar.gz

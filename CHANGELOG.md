@@ -5,6 +5,10 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-21
+
+An MCP server and a Claude Desktop extension, and date filters in your zone.
+
 ### Changed
 
 - **A bare date in `--since` or `--until` is a day in your zone, not UTC**
