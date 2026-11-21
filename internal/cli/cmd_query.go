@@ -55,7 +55,7 @@ were found: a workspace is not an exhaustive record.`,
 			if err != nil {
 				return err
 			}
-			f, zone, err := recallFilter(ws, since, until, tz, standpoint, kind, container)
+			f, zone, err := a.recallFilter(ws, since, until, tz, standpoint, kind, container)
 			if err != nil {
 				return err
 			}

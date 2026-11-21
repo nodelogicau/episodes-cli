@@ -14,7 +14,9 @@ Items 1 to 16 were raised on 2026-11-13 as
 to [#34](https://github.com/nodelogicau/episodes/issues/34), one issue each.
 Items 17 and 18 were raised on 2026-11-14 as
 [#35](https://github.com/nodelogicau/episodes/issues/35) and
-[#36](https://github.com/nodelogicau/episodes/issues/36).
+[#36](https://github.com/nodelogicau/episodes/issues/36). Items 19 to 23
+were found while implementing the reference tool set in change
+`add-mcp-server` (#32), and are not yet raised upstream.
 
 | # | Topic | Status |
 |---|---|---|
@@ -36,6 +38,11 @@ Items 17 and 18 were raised on 2026-11-14 as
 | 16 | A container's standpoint | settled upstream (`acts-and-containers`, [#34](https://github.com/nodelogicau/episodes/issues/34)); adopted in #9 |
 | 17 | The `EPISODE` example's `participants` are not sorted | open, [#35](https://github.com/nodelogicau/episodes/issues/35) |
 | 18 | `english` is well-formed under the BCP 47 ABNF | settled upstream (`tighten-canonical-form`, [#36](https://github.com/nodelogicau/episodes/issues/36)); adopted in #7 |
+| 19 | The set is drawn from v0.2.0, but `episode_list` and `episode_query` take `tz` | open, not yet raised |
+| 20 | An `author` passed to a tool: refuse it or write the bound author | open, not yet raised |
+| 21 | What a relative `hash_file` or `content_file` is relative to | open, not yet raised |
+| 22 | Whether an invalid workspace's `validate` report is a tool error | open, not yet raised |
+| 23 | The client's name as the harness | open, not yet raised |
 
 ---
 
@@ -315,3 +322,75 @@ letters is rejected.
 matches the §2.1 grammar, and a validator may warn on a subtag missing from
 the registry but must not reject it. The extra rejection is gone. `english`
 is valid with a `language_unregistered` warning (#7).
+
+## 19. The set is drawn from v0.2.0, but `episode_list` and `episode_query` take `tz`
+
+**What the draft says.** The Reference Tool Set "is drawn from the verbs of
+episodes-cli v0.2.0", and lists `tz?` among the parameters of
+`episode_list` and `episode_query`.
+
+**What we decided.** v0.2.0's `list` and `query` have no `--tz`. It came
+with change `filter-dates-in-zone` (#27), unreleased at the time of writing:
+a `--since` or `--until` given as a date alone is a day in the reader's
+zone, which is `--tz`, then `EPISODES_ZONE`, then `defaults.zone`, then
+UTC. The server exposes that meaning, so it ships in the release after
+v0.2.0.
+
+**Proposal.** Name the version the set is drawn from as the one that
+exposes it (v0.3.0), and say what `tz` means on the recall tools: the zone
+a date-alone bound is reckoned in, and that a date-time bound is unaffected.
+
+## 20. An `author` passed to a tool: refuse it or write the bound author
+
+**What the draft says.** "A call that passes an author is refused, or the
+bound author is written and the result says so."
+
+**What we decided.** Refused. No tool's input schema has `author`,
+`harness` or `now`, and every schema forbids properties it doesn't list, so
+a call passing one is rejected before it reaches the verb, and nothing is
+written. A result that silently differs from what the caller asked for is
+easy to miss; a refusal isn't.
+
+**Proposal.** Keep both options if other implementations need the second,
+but say that a refusal happens before anything is written.
+
+## 21. What a relative `hash_file` or `content_file` is relative to
+
+**What the draft says.** `hash_file` and `content_file` "are paths the
+implementation reads". Nothing says what a relative path is relative to.
+
+**What we decided.** The workspace root. A server's working directory is
+wherever its client launched it, which a model can't see. The workspace
+root is reported by `workspace_status`. An absolute path is used as given.
+
+**Proposal.** Say that a relative path is resolved against the workspace
+root, or that the tools take absolute paths only.
+
+## 22. Whether an invalid workspace's `validate` report is a tool error
+
+**What the draft says.** "A tool's result is the same as the
+implementation's non-interactive output for the operation, and every
+refusal the operation makes, the tool makes."
+
+**What we decided.** `validate` on a workspace with errors exits 4 and
+prints its report, with no error envelope. The tool returns that report as
+an ordinary result, with `valid: false`, not as a tool error. A check that
+finds problems has done its job; it hasn't refused anything.
+
+**Proposal.** Say that `validate`'s report is its result whatever it finds.
+
+## 23. The client's name as the harness
+
+**What the draft says.** "The author and the harness come from the
+implementation's configuration when it starts."
+
+**What we decided.** When neither `--harness`, `EPISODES_HARNESS` nor
+`defaults.source.harness` is set, the server records the connected client's
+name, from MCP's `initialize`, as `source.harness`. It isn't configuration,
+but it's fixed for the session and no tool can change it, and an episode
+with no harness says less about how it was recorded. intentions-cli and
+particulars-cli do the same.
+
+**Proposal.** Allow the harness to come from the session's own
+identification as well as from configuration, as long as no call can set
+it.

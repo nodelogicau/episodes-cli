@@ -22,7 +22,7 @@ func (a *app) validateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			at, _, err := resolveNow(actFlags{now: now})
+			at, _, err := a.resolveNow(actFlags{now: now})
 			if err != nil {
 				return err
 			}

@@ -38,7 +38,7 @@ func (a *app) write(f actFlags, fn func(c *writeCtx) (map[string]any, func(io.Wr
 	if err != nil {
 		return err
 	}
-	now, fixed, err := resolveNow(f)
+	now, fixed, err := a.resolveNow(f)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (a *app) recordInlineCmd() *cobra.Command {
 				return refusedErr("uid_on_inline: an inline episode must not carry uid; its identity is its episode id")
 			}
 			return a.write(act, func(c *writeCtx) (map[string]any, func(io.Writer), error) {
-				zone, err := zoneFor(c.ws, f.zone)
+				zone, err := a.zoneFor(c.ws, f.zone)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -376,7 +376,7 @@ func (a *app) conversationStartCmd() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			return a.write(act, func(c *writeCtx) (map[string]any, func(io.Writer), error) {
-				zone, err := zoneFor(c.ws, f.zone)
+				zone, err := a.zoneFor(c.ws, f.zone)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -461,7 +461,7 @@ func (a *app) conversationTurnCmd() *cobra.Command {
 				if !c.ws.Exists(container) {
 					return nil, nil, notFoundErr("container %s does not exist in this workspace", container)
 				}
-				zone, err := zoneFor(c.ws, f.zone)
+				zone, err := a.zoneFor(c.ws, f.zone)
 				if err != nil {
 					return nil, nil, err
 				}

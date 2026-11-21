@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -42,6 +43,9 @@ type app struct {
 	stdout          io.Writer
 	stderr          io.Writer
 	stdinIsTerminal func() bool
+	// getenv is the environment the verbs read: os.Getenv, or what an
+	// in-process caller such as the MCP server allows them to see.
+	getenv func(string) string
 	// warnings collects advisory notes raised while a verb runs. emit carries
 	// them in the JSON result and prints them to stderr in text mode.
 	warnings []string
@@ -50,7 +54,25 @@ type app struct {
 // Execute runs the CLI with the given arguments and streams, returning the
 // process exit code. It never calls os.Exit, so tests can drive it in-process.
 func Execute(args []string, stdin io.Reader, stdout, stderr io.Writer, stdinIsTerminal func() bool) int {
-	a := &app{stdin: stdin, stdout: stdout, stderr: stderr, stdinIsTerminal: stdinIsTerminal}
+	return ExecuteWith(Options{}, args, stdin, stdout, stderr, stdinIsTerminal)
+}
+
+// Options adjust an in-process run (change add-mcp-server, D3).
+type Options struct {
+	// Getenv replaces os.Getenv for what the verbs read directly
+	// (EPISODES_NOW, EPISODES_ZONE). The server hides EPISODES_NOW so the
+	// clock is its own. Attribution and the workspace are passed as flags,
+	// which come before the environment.
+	Getenv func(string) string
+}
+
+// ExecuteWith is Execute with Options.
+func ExecuteWith(o Options, args []string, stdin io.Reader, stdout, stderr io.Writer, stdinIsTerminal func() bool) int {
+	getenv := o.Getenv
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	a := &app{stdin: stdin, stdout: stdout, stderr: stderr, stdinIsTerminal: stdinIsTerminal, getenv: getenv}
 	root := a.rootCmd()
 	root.SetArgs(args)
 	root.SetIn(stdin)
@@ -177,6 +199,7 @@ episodes.yaml. At least one of author or harness is required.`,
 	root.AddCommand(
 		a.initCmd(),
 		a.workspaceCmd(),
+		a.serveCmd(),
 		a.recordCmd(),
 		a.conversationCmd(),
 		a.actCmd(),

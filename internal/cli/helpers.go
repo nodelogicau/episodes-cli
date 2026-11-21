@@ -59,8 +59,8 @@ func resolveSource(ws *store.Workspace, f actFlags) (model.Source, error) {
 
 // resolveNow applies --now, then EPISODES_NOW, then the clock. fixed is true
 // when the time was given, so the minting instant follows it too.
-func resolveNow(f actFlags) (now time.Time, fixed bool, err error) {
-	s := firstNonEmpty(f.now, os.Getenv(EnvNow))
+func (a *app) resolveNow(f actFlags) (now time.Time, fixed bool, err error) {
+	s := firstNonEmpty(f.now, a.getenv(EnvNow))
 	if s == "" {
 		return time.Now().UTC().Truncate(time.Second), false, nil
 	}
@@ -140,9 +140,9 @@ func addOccurredFlags(cmd *cobra.Command, f *occurredFlags, required bool) {
 // then EPISODES_ZONE, then defaults.zone, then UTC; never the host's
 // (filter-dates-in-zone D1). An unknown zone is a usage error naming where it
 // came from; defaults.zone was checked when the config loaded.
-func readerZone(ws *store.Workspace, tz string) (*time.Location, string, error) {
+func (a *app) readerZone(ws *store.Workspace, tz string) (*time.Location, string, error) {
 	for _, c := range []struct{ src, v string }{
-		{"--tz", tz}, {EnvZone, os.Getenv(EnvZone)}, {"defaults.zone", ws.Config.Defaults.Zone},
+		{"--tz", tz}, {EnvZone, a.getenv(EnvZone)}, {"defaults.zone", ws.Config.Defaults.Zone},
 	} {
 		if z := strings.TrimSpace(c.v); z != "" {
 			loc, err := temporal.LoadZone(z)
@@ -157,8 +157,8 @@ func readerZone(ws *store.Workspace, tz string) (*time.Location, string, error) 
 
 // zoneFor is the zone a verb writes when it supplies occurred itself:
 // --zone, then EPISODES_ZONE, then defaults.zone; never the host's.
-func zoneFor(ws *store.Workspace, flag string) (string, error) {
-	z := firstNonEmpty(flag, os.Getenv(EnvZone), ws.Config.Defaults.Zone)
+func (a *app) zoneFor(ws *store.Workspace, flag string) (string, error) {
+	z := firstNonEmpty(flag, a.getenv(EnvZone), ws.Config.Defaults.Zone)
 	if z == "" {
 		return "", nil
 	}

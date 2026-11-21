@@ -17,6 +17,17 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ### Added
 
+- **`episodes serve --mcp`: the format's reference tool set over MCP** (#32,
+  change `add-mcp-server`). Eleven tools by default, from
+  `episode_record_inline` to `workspace_status`, plus `conversation_start`
+  and `conversation_turn` with `--conversation-tools`. Each tool runs its
+  verb, so results and refusals are the verb's `--json`. The author, harness
+  and clock are bound when the server starts: no tool takes them, and
+  `EPISODES_NOW` is ignored. `act_attest` requires `via`. Resources
+  `episode://{id}` and `episode://{id}/thread` notify subscribers after
+  `observe` and `redact`. New dependency:
+  `github.com/modelcontextprotocol/go-sdk` v1.7.0. `SPEC-FEEDBACK.md`
+  items 19 to 23 record where the set was made concrete.
 - **`--tz` on `list` and `query`**, the zone a bare-date `--since` or
   `--until` is reckoned in. As on `record`, it's a usage error without one.
 

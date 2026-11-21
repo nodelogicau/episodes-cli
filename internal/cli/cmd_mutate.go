@@ -28,7 +28,7 @@ func (a *app) writeOnly(f actFlags, fn func(c *writeCtx) error) error {
 	if err != nil {
 		return err
 	}
-	now, fixed, err := resolveNow(f)
+	now, fixed, err := a.resolveNow(f)
 	if err != nil {
 		return err
 	}

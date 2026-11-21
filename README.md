@@ -146,6 +146,7 @@ is still a UTC day, as the format says.
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
 | `index [--check]` | Rebuild the root index from the files and write missing segments, or compare without writing. |
 | `version` | Print the version, the format (`episodes/0.1`) and the date of the link-relation snapshot. `--version` does the same. |
+| `serve --mcp` | Serve the workspace to an MCP client over stdio, exposing the format's reference tool set (see [MCP server](#mcp-server)). |
 
 Every writing verb takes `--author`, `--harness` and `--model`. These fall
 back to `EPISODES_AUTHOR`, `EPISODES_HARNESS` and `EPISODES_MODEL`, then to
@@ -168,6 +169,53 @@ writer writes, with a warning naming anything dropped:
 takes from the clock, never to a value you supply.
 
 `EPISODES_CACHE_DIR` overrides where derived caches are kept (see below).
+
+## MCP server
+
+`episodes serve --mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
+server over stdio, bound to one workspace. It exposes the Episodes Format's
+[Reference Tool Set](https://github.com/nodelogicau/episodes#reference-tool-set):
+
+| Group | Tools |
+|---|---|
+| Record | `episode_record_inline`, `episode_record_ref`, `act_attest`, `episode_observe`, `episode_redact` (and `conversation_start`, `conversation_turn` with `--conversation-tools`) |
+| Recall | `episode_show`, `episode_list`, `episode_query`, `episode_thread` |
+| Workspace | `validate`, `workspace_status` |
+
+Each tool runs its verb in-process. Its parameters are the verb's flags in
+snake case, with repeatable flags as lists and `links` as `{rel, href}`, and
+its result is the verb's `--json` output. A refusal is the verb's error code
+and message.
+
+- **The author, harness and clock are bound.** No tool takes `author`,
+  `harness` or `now`, and a call that passes one is refused. The author
+  comes from `--author`, then `EPISODES_AUTHOR`, then
+  `defaults.source.author`. The harness comes from `--harness`, then
+  `EPISODES_HARNESS`, then `defaults.source.harness`, then the client's
+  name. `EPISODES_NOW` is ignored. A writing tool may pass `model`.
+- **`act_attest` requires `via`**, naming the bound author's episode in
+  which they asked, and has no `control` or `standpoint`.
+- **Conversation tools are off by default.** A harness should record turns
+  from its own transcript, through a hook that runs `episodes conversation`,
+  not by a model re-typing them.
+- **`hash_file` and `content_file`** are read by the server, relative to the
+  workspace root.
+- **Resources** `episode://{id}` and `episode://{id}/thread` read as `show`
+  and `thread`. Subscribers are notified after `observe` or `redact` changes
+  one.
+
+Calls run one at a time. A client configuration looks like this:
+
+```json
+{
+  "mcpServers": {
+    "episodes": {
+      "command": "episodes",
+      "args": ["serve", "--mcp", "--workspace", "/path/to/workspace", "--author", "https://example.com/ada"]
+    }
+  }
+}
+```
 
 ## Exit codes
 
