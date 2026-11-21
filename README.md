@@ -87,11 +87,12 @@ episodes validate
 | `record ref` | Record a trace of content that lives elsewhere (`--ref`, `--uid` or `--message-id`, `--version`, `--hash` or `--hash-file`). `--memento <uri>` (repeatable) records an archived snapshot you already made as a `memento` link anchored to `--ref`; recording never submits anything to an archive. `--occurred` and `--basis` are required. A repeated `(standpoint, media_type, uid)` is refused unless you pass `--allow-duplicate`. |
 | `conversation start` | Write a conversation container (`content: {mode: none}`) and its first turn, under one lock. |
 | `conversation turn <container>` | Append a turn. It is given the next ordinal under the lock. `--standpoint` is required on every turn. |
+| `import [<file>\|-]` | Create many episodes from NDJSON, one line per episode, checked together and written in chunks of 1,000 (see [Bulk import](#bulk-import)). |
 | `act` | Record a self-attested act: its standpoint is `source.author` and its content is `{mode: attested}`, a mode that carries no other key. When a harness records it, it must say how the person attested it: `--via <episode>` (the turn where they asked) or `--control` (a dedicated logging control; the caller's statement, which the binary cannot check). |
 | `observe <id>` | Write `source_status` on a reference episode, either from `--state` or by hashing `--content-file`, or by comparing `--version`. |
 | `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. Redacting `content.ref` also removes `content.uid`, `content.version`, `content.hash` and `links`, so the tombstone no longer says where the content is, and the result names what it added. It is irreversible and never cascades, and every result says that git history still holds the text. |
 | `show <id> [--children]` | Print an episode, located by the path its id derives (the index is never read). |
-| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. |
+| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. `--ndjson` streams one episode per line instead (see [Streaming](#streaming-list---ndjson)). |
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
 | `index [--check]` | Rebuild the root index from the files and write missing segments, or compare without writing. |
@@ -132,6 +133,86 @@ takes from the clock, never to a value you supply.
 
 With `--json`, a success writes exactly one object to stdout, and a failure
 writes `{"error": {"code", "message"}}` to stderr and nothing to stdout.
+
+## Bulk import
+
+`episodes import [<file>|-]` creates episodes from NDJSON, one JSON object
+per line, for deterministic connectors that write mail, calendar and file
+traces at volume. A line holds the episode's own fields, with the same names
+and shapes as the YAML file: `kind`, `standpoint`, `occurred`,
+`participants`, `place`, `label`, `container`, `ordinal`, `links` and
+`content`.
+
+```json
+{"@key": "m1", "kind": "email", "standpoint": "https://example.com/jane", "occurred": {"start": "2026-11-07T14:24:00+11:00", "basis": "stated"}, "label": "Invoice", "content": {"mode": "ref", "ref": "gmail:18c2", "uid": "mid:18c2@example.com", "media_type": "message/rfc822"}}
+{"kind": "file", "standpoint": "https://example.com/jane", "container": "@m1", "ordinal": "auto", "occurred": {"start": "2026-11-07T14:24:00+11:00", "basis": "stated"}, "content": {"mode": "ref", "ref": "gmail:18c2/att/1", "media_type": "application/pdf"}}
+```
+
+- The binary mints each `id`, in line order, and supplies `type`, `source`
+  (from `--author`, `--harness` and `--model`, their environment variables
+  or `defaults.source`, once for the batch) and one `timestamp` for the
+  batch. A line that carries `id`, `type`, `source`, `timestamp`,
+  `source_status`, `redacted`, or any key the format doesn't define, is
+  refused. Import is not a copy tool.
+- Every rule `record` applies to one episode applies to each line, and
+  what `record` defaults, import defaults too: an inline line's `media_type`
+  and `derivation`, and its time. An inline line with no `occurred`, or with
+  only `{"basis": "recorded"}`, happened now, written in `--zone`,
+  `EPISODES_ZONE` or `defaults.zone`. A reference line always gives
+  `occurred` with its `basis`.
+- `"@key": "<name>"` names a line within the batch. A later line can give
+  `"@<name>"` as its `container` or as a link `href`. A key defined twice,
+  never defined, or defined only on a later line fails the line that uses
+  it.
+- `"ordinal": "auto"` is one more than the highest ordinal the container
+  holds, counting the workspace and earlier lines of the batch. It is
+  worked out under the lock.
+- A self-attested act (`content.mode: attested`) is refused: record each
+  one with `episodes act`. A container (`content.mode: none`) must be named
+  as `container` by a later line in the batch.
+
+Every line is checked before any line is written:
+
+| Flag | Values |
+|---|---|
+| `--on-error` | `stop` (default): if any line fails, nothing is written, and every failing line is reported. `skip`: the lines that pass are written, and a line naming a failed line fails with `dependency_failed`. |
+| `--on-duplicate` | For a repeated `(standpoint, media_type, uid)`, in the workspace or earlier in the batch. `refuse` (default) fails the line with `duplicate`. `skip` reports it `skipped` with the existing id, which makes re-running a connector safe. A later line naming its `@key` gets the existing episode. `allow` writes it. |
+
+Lines are written in chunks of 1,000. Each chunk holds the workspace lock
+once, re-checks its lines against a fresh listing (another writer may have
+taken an ordinal or recorded a uid since the check), and updates the index
+once, so a capture hook waits for at most one chunk. A chunk that has been
+written stays written if a later one fails. Re-running with
+`--on-duplicate skip` resumes the batch, for lines that have a `uid`.
+
+The result names every line's outcome, in input order: `written` with its
+`id` and `path`, `skipped` with the existing `id`, or `failed` with a `code`
+and `message`. It also gives the counts. `--json` writes one object,
+`{"written", "skipped", "failed", "lines": [...]}`. `--ndjson` writes one
+object per line and then a summary. The exit status is 0 when no line
+failed, 2 when any line did, and 1 on an I/O failure, after the result.
+
+Every decoded line is held in memory until the check is done, which suits
+batches of about 10,000 lines. Split far larger ones.
+
+## Streaming (`list --ndjson`)
+
+`list --ndjson` writes one JSON object per episode per line, for selectors
+and consolidators reading a large workspace. It can't be combined with
+`--json`. Its default order is `--by recorded` (id order), which streams.
+`--by occurred` and `--by ordinal` hold the matching index entries, though
+not the episodes, until they are sorted.
+
+- `--fields full` (default) writes whole episodes. Each file is parsed and
+  written as it is reached, and withdrawn episodes are left out unless
+  `--include-withdrawn` is given.
+- `--fields index` writes only the seven indexed fields (`id`, `kind`,
+  `occurred`, `container`, `ordinal`, `standpoint`, `timestamp`) and `path`.
+  It opens no episode file the index already covers, and parses only the
+  files the index lacks, so it stays correct when the index lags. **It lists
+  withdrawn episodes too.** The index can't tell them apart, since it holds
+  neither `content.mode` nor `redacted`. Use `--fields full` when withdrawn
+  episodes must be left out.
 
 ## Workspace discovery
 

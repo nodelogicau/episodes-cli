@@ -5,7 +5,41 @@ them with:
 
 ```sh
 go test ./internal/store ./internal/query -run '^$' -bench . -benchtime 10x
+go test ./internal/cli -run '^$' -bench . -benchtime 3x -timeout 30m
 ```
+
+## 2026-11-21, `bulk-import` (#1)
+
+| Benchmark | Target | Result |
+|---|---|---|
+| `BenchmarkImport10kInto20k` | under 10 s | **5.9 s** |
+| `BenchmarkImportChunk` (lock hold time of one chunk of 1,000) | | **558 ms** |
+| `BenchmarkListNDJSONIndex100k`, time to first line (100,000 episodes over two years) | under 1 s | **126 ms** (1.08 s for the whole stream) |
+| `BenchmarkListNDJSONIndex100kOpen`, time to first line (all 100,000 in the open months) | | **813 ms** (1.10 s for the whole stream) |
+
+The import is 10,000 reference records with uids, run as one `import`, into
+a copy of a workspace whose open months hold 20,000 reference episodes, with
+its uid cache already built. Checking every line, including the duplicate
+lookup against a `UIDSet` built once, takes a few hundred milliseconds.
+Nearly all the rest is `CreateBatch` in file system calls: creating,
+linking and removing each temporary file. The index is updated by one
+splice per chunk.
+
+Each file is synced with a plain `fsync`, and each chunk ends with one
+`F_FULLFSYNC`, before the index names its files and the lock is released.
+On macOS, `os.File.Sync` is `F_FULLFSYNC`, which also flushes the drive's
+cache and costs about 3.4 ms a file. Paid per file, 10,000 files take 34 s
+(20 s even with 32 writers in parallel), against about 0.4 ms each now.
+Elsewhere `Sync` is already the full sync, and the barrier adds nothing.
+Each chunk is still durable before it is reported written. A single
+`record` is unchanged.
+
+`list --ndjson --fields index` reads the root's head, then one month's
+segment at a time as the ids reach it, and parses the root's entries only
+when it reaches an id that no segment holds. When the episodes span two
+years, the first line waits only on the directory listing and the first
+segment. When all 100,000 are in the open months, it waits on parsing the
+whole 20 MB root, which is still under the target.
 
 ## 2026-11-14, after `uid-cache` (#3)
 

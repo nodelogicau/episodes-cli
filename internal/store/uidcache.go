@@ -209,26 +209,7 @@ func (w *Workspace) UIDCandidates(l *Listing, standpoint, mediaType, uid string)
 
 // NoteUID adds a just-created episode to the cache, when this process has
 // loaded it; otherwise the next lookup's reconcile parses the one new file.
-func (w *Workspace) NoteUID(ep *model.Episode) {
-	c := w.uids
-	if c == nil {
-		return
-	}
-	dir := Shard(ep.ID)
-	d := c.Dirs[dir]
-	if d == nil {
-		d = &uidDir{}
-		c.Dirs[dir] = d
-	}
-	for _, n := range d.Names {
-		if n == ep.ID {
-			return
-		}
-	}
-	d.add(ep.ID, ep)
-	c.changed = true
-	c.save()
-}
+func (w *Workspace) NoteUID(ep *model.Episode) { w.NoteUIDs([]*model.Episode{ep}) }
 
 // ForgetUID drops the cached uid of episode id, keeping its name so the file
 // is not parsed again. redact calls it when it removes content.uid, and the

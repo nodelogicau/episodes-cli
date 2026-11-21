@@ -5,6 +5,30 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`episodes import`: bulk creation from NDJSON** (#1). Each line is an
+  episode to create, given with the episode's own fields. The binary mints
+  the ids in line order and supplies `type`, `source` and one `timestamp`
+  for the batch. A line carrying any of those, or a key the format doesn't
+  define, is refused. `"@key"` names a line, so a later one can use
+  `"@<key>"` as its `container` or a link `href`, for an email and its
+  attachments in one batch. `"ordinal": "auto"` takes the next position
+  under the lock. Every line is checked before any is written.
+  `--on-error stop|skip` decides whether one bad line stops the batch, and
+  `--on-duplicate refuse|skip|allow` makes re-running a connector safe.
+  Writes go in chunks of 1,000, each under the lock with one index update,
+  so a capture hook waits at most one chunk. The result maps each line to
+  its id, or says why it was skipped or failed. Self-attested acts are
+  refused, as is a container no later line names.
+- **`list --ndjson` and `--fields full|index`** (#1). Streams one episode
+  per line, in id order by default. `--fields index` writes the seven
+  indexed fields and `path` without opening any file the index covers, and
+  lists withdrawn episodes too, since the index can't tell them apart.
+- Benchmarks: importing 10,000 references into 20,000 entries takes 5.9 s
+  (target 10 s). The first line of `list --ndjson --fields index` over
+  100,000 episodes arrives in 126 ms (target 1 s). See `docs/benchmarks.md`.
+
 ### Changed
 
 - **Anchored links and the `memento` relation** (#15, upstream change
