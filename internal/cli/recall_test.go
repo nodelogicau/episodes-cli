@@ -115,7 +115,7 @@ func TestEmptyInterval(t *testing.T) {
 	e := newEnv(t)
 	e.note("2026-11-07T03:00:00Z")
 	m := e.ok("list", "--since", "2025-01-01", "--until", "2025-01-31")
-	if m["count"] != 0.0 || len(m["episodes"].([]any)) != 0 || len(m) != 2 {
+	if m["count"] != 0.0 || len(m["episodes"].([]any)) != 0 || len(m) != 3 || m["zone"] != "UTC" {
 		t.Fatal(m)
 	}
 	r := execute(t, "", "list", "--since", "2025-01-01", "--until", "2025-01-31", "--workspace", e.dir)

@@ -136,6 +136,25 @@ func addOccurredFlags(cmd *cobra.Command, f *occurredFlags, required bool) {
 	cmd.Flags().StringVar(&f.basis, "basis", "", "how the time is known: stated (a source gave it) or inferred (worked out); required with --occurred")
 }
 
+// readerZone is the zone a filter's date-alone bound is reckoned in: --tz,
+// then EPISODES_ZONE, then defaults.zone, then UTC; never the host's
+// (filter-dates-in-zone D1). An unknown zone is a usage error naming where it
+// came from; defaults.zone was checked when the config loaded.
+func readerZone(ws *store.Workspace, tz string) (*time.Location, string, error) {
+	for _, c := range []struct{ src, v string }{
+		{"--tz", tz}, {EnvZone, os.Getenv(EnvZone)}, {"defaults.zone", ws.Config.Defaults.Zone},
+	} {
+		if z := strings.TrimSpace(c.v); z != "" {
+			loc, err := temporal.LoadZone(z)
+			if err != nil {
+				return nil, "", usageErr("%s: %v", c.src, err)
+			}
+			return loc, z, nil
+		}
+	}
+	return time.UTC, "UTC", nil
+}
+
 // zoneFor is the zone a verb writes when it supplies occurred itself:
 // --zone, then EPISODES_ZONE, then defaults.zone; never the host's.
 func zoneFor(ws *store.Workspace, flag string) (string, error) {

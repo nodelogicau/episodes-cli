@@ -5,6 +5,21 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **A bare date in `--since` or `--until` is a day in your zone, not UTC**
+  (#27, change `filter-dates-in-zone`). On `list` and `query`, the zone is
+  `--tz`, then `EPISODES_ZONE`, then `defaults.zone`, then UTC. In a
+  Melbourne workspace, `list --since 2026-11-16` now includes an email at
+  09:12 on the 16th. If you set a zone and filter by dates, results now
+  follow local days. `--json` reports the zone used as `zone` when a bound
+  is a date alone. Date-time bounds and stored values are unchanged.
+
+### Added
+
+- **`--tz` on `list` and `query`**, the zone a bare-date `--since` or
+  `--until` is reckoned in. As on `record`, it's a usage error without one.
+
 ### Fixed
 
 - **`validate` no longer warns `id_from_future` on an episode written in the

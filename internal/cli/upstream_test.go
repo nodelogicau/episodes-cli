@@ -293,7 +293,7 @@ func TestUpstream(t *testing.T) {
 		"episode-evidence/A gap in the record": func(t *testing.T) {
 			e := newEnv(t)
 			m := e.ok("list", "--since", "2026-10-01", "--until", "2026-10-31")
-			if m["count"] != 0.0 || len(m) != 2 {
+			if m["count"] != 0.0 || len(m) != 3 || m["zone"] != "UTC" {
 				t.Fatal(m)
 			}
 		},
