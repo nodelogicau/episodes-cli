@@ -1,5 +1,5 @@
 # Origin: nodelogicau/intentions-cli .github/workflows/ci.yml @ b72a395454aa
-# (skill-check and desktop-bundle jobs dropped: episodes has neither yet)
+# (skill-check job dropped: episodes has no skill yet)
 name: CI
 
 on:
@@ -40,6 +40,25 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+
+  bundle:
+    name: Desktop bundle (macos)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # build-bundle.sh refuses to write a bundle whose macOS binary is not
+      # universal, so a green job is the assertion.
+      - run: make bundle
+      - name: Bundle is universal and complete
+        run: |
+          mkdir -p "$RUNNER_TEMP/mcpb" && unzip -q dist/episodes-*.mcpb -d "$RUNNER_TEMP/mcpb"
+          file "$RUNNER_TEMP/mcpb/server/darwin/episodes" | grep -q "universal binary"
+          test -x "$RUNNER_TEMP/mcpb/server/darwin/episodes" && test -s "$RUNNER_TEMP/mcpb/server/win32/episodes.exe"
+          python3 -c "import json;json.load(open('$RUNNER_TEMP/mcpb/manifest.json'))"
 
   cross:
     name: Cross-compile

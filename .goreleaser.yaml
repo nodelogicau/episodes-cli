@@ -1,5 +1,4 @@
 # Origin: nodelogicau/intentions-cli .goreleaser.yaml @ b72a395454aa
-# (universal binary and desktop bundle dropped: episodes has no desktop bundle)
 version: 2
 
 project_name: episodes
@@ -26,6 +25,16 @@ builds:
       - amd64
       - arm64
 
+# Darwin universal binary for the Desktop bundle (MCPB platform overrides are
+# keyed by OS, not arch). The per-arch archives are unaffected.
+universal_binaries:
+  - id: episodes-universal
+    ids: [episodes]
+    replace: false
+    name_template: episodes
+    hooks:
+      post: sh scripts/build-bundle.sh {{ .Version }} dist
+
 archives:
   - id: default
     formats: [tar.gz]
@@ -40,6 +49,8 @@ archives:
 
 checksum:
   name_template: checksums.txt
+  extra_files:
+    - glob: dist/*.mcpb
 
 # Homebrew cask (macOS and Linux), published to the same tap as particulars
 # and intentions. `brews` was removed in GoReleaser 2.16; casks are the
@@ -71,3 +82,7 @@ homebrew_casks:
           run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/episodes"]
         end
       end
+
+release:
+  extra_files:
+    - glob: dist/*.mcpb

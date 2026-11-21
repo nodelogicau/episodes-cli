@@ -217,6 +217,16 @@ Calls run one at a time. A client configuration looks like this:
 }
 ```
 
+### Claude Desktop
+
+Each release also has `episodes-<version>.mcpb`, a Claude Desktop extension
+that bundles the server for macOS (a universal binary) and Windows. Open
+the file with Claude Desktop, choose the workspace folder, and optionally
+give your author URI. Without one, `defaults.source.author` in
+`episodes.yaml` is used, if set. The harness is recorded as Claude
+Desktop's client name. The extension lists the eleven default tools; the
+conversation tools are not enabled. Build one locally with `make bundle`.
+
 ## Exit codes
 
 | Code | Meaning |

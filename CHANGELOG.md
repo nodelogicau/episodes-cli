@@ -28,6 +28,11 @@ All notable changes to `episodes` are recorded here. The format follows
   `observe` and `redact`. New dependency:
   `github.com/modelcontextprotocol/go-sdk` v1.7.0. `SPEC-FEEDBACK.md`
   items 19 to 23 record where the set was made concrete.
+- **A Claude Desktop extension, `episodes-<version>.mcpb`**, attached to
+  each release and listed in `checksums.txt`. It bundles `serve --mcp` for
+  macOS (universal) and Windows and asks for a workspace folder and an
+  optional author. `make bundle` builds one locally, and CI checks it is
+  complete. Ported from intentions-cli.
 - **`--tz` on `list` and `query`**, the zone a bare-date `--since` or
   `--until` is reckoned in. As on `record`, it's a usage error without one.
 

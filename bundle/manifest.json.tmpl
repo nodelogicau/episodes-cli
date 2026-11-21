@@ -1,0 +1,58 @@
+{
+  "manifest_version": "0.3",
+  "name": "episodes",
+  "display_name": "episodes — what happened, and where its record lives",
+  "version": "__VERSION__",
+  "description": "Record and recall episodes as YAML in an Episodes Format workspace: what happened, when, from whose standpoint, and where the record of it lives. One server per workspace; reviewed by humans through git.",
+  "long_description": "episodes keeps one YAML file per episode in an Episodes Format workspace: a note recorded inline, or a reference to content that lives elsewhere (an email, a calendar event, a file), each with the time it occurred, whose standpoint it is from, and how that time is known. Episodes are never revised; observe and redact are the only changes to an existing file. Recall lists and queries them by time, standpoint, kind and text, without a model. Every write carries attribution, and the author, harness and clock are bound by the server, never passed by a tool call. This extension runs the episodes MCP server bound to one workspace folder.",
+  "author": { "name": "NodeLogic", "url": "https://github.com/nodelogicau" },
+  "homepage": "https://github.com/nodelogicau/episodes-cli",
+  "documentation": "https://github.com/nodelogicau/episodes-cli#mcp-server",
+  "license": "MIT",
+  "icon": "icon.png",
+  "keywords": ["episodes", "memory", "journal", "provenance", "recall"],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/darwin/episodes",
+    "mcp_config": {
+      "command": "${__dirname}/server/darwin/episodes",
+      "args": ["serve", "--mcp", "--workspace", "${user_config.workspace}", "--author", "${user_config.author}"],
+      "env": {},
+      "platform_overrides": {
+        "darwin": { "command": "${__dirname}/server/darwin/episodes" },
+        "win32":  { "command": "${__dirname}/server/win32/episodes.exe" }
+      }
+    }
+  },
+  "tools": [
+    { "name": "episode_record_inline", "description": "Record content that has no other home, such as a note" },
+    { "name": "episode_record_ref", "description": "Record a trace of content that lives elsewhere, at the time the source states" },
+    { "name": "act_attest", "description": "Record a self-attested act of the bound author, only on their request" },
+    { "name": "episode_observe", "description": "Write source_status on a reference episode" },
+    { "name": "episode_redact", "description": "Remove fields from an episode, recording who, when and why; only on the person's request" },
+    { "name": "episode_show", "description": "One episode, optionally with the episodes it contains" },
+    { "name": "episode_list", "description": "Episodes filtered by time, standpoint, kind and container" },
+    { "name": "episode_query", "description": "Episodes matching terms in their label or text, or a content uid" },
+    { "name": "episode_thread", "description": "A container's children in order" },
+    { "name": "validate", "description": "Check the workspace against the format" },
+    { "name": "workspace_status", "description": "Where the server is bound and how the workspace is configured" }
+  ],
+  "user_config": {
+    "workspace": {
+      "type": "directory",
+      "title": "Episodes workspace",
+      "description": "Folder containing episodes.yaml. Create one with `episodes init <folder>` (installer: https://github.com/nodelogicau/episodes-cli#install-with-homebrew).",
+      "required": true
+    },
+    "author": {
+      "type": "string",
+      "title": "Your URI or name (source.author)",
+      "description": "Recorded as the person behind episodes written from this app. Optional when the workspace's episodes.yaml sets defaults.source.author; the harness name is recorded regardless.",
+      "required": false,
+      "default": ""
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32"]
+  }
+}
