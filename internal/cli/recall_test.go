@@ -212,6 +212,30 @@ func TestBrokenClocks(t *testing.T) {
 	}
 }
 
+// #28: now from the clock is whole seconds, ids are minted to the
+// millisecond; an id minted in now's second is not from the future.
+func TestIDMintedInNowsSecond(t *testing.T) {
+	e := newEnv(t)
+	same := idAt(at("2026-11-08T00:00:00.600Z"))
+	e.put(same, strings.Replace(handMade(same, ""), "timestamp: 2026-11-07T03:24:40Z", "timestamp: 2026-11-08T00:00:00Z", 1))
+	rep, code := e.validate("2026-11-08T00:00:00Z")
+	if code != 0 || finding(rep, "id_from_future") != nil {
+		t.Fatal(rep)
+	}
+	next := idAt(at("2026-11-08T00:00:01Z"))
+	e.put(next, strings.Replace(handMade(next, ""), "timestamp: 2026-11-07T03:24:40Z", "timestamp: 2026-11-08T00:00:00Z", 1))
+	if rep, _ = e.validate("2026-11-08T00:00:00Z"); finding(rep, "id_from_future") == nil {
+		t.Fatal(rep)
+	}
+
+	// record then validate straight away, both from the clock.
+	e2 := newEnv(t)
+	e2.ok("record", "inline", "--kind", "note", "--standpoint", ada, "--text", "a note")
+	if r := e2.run("validate"); r.code != 0 || finding(r.json(t), "id_from_future") != nil {
+		t.Fatal(r)
+	}
+}
+
 // --- index -------------------------------------------------------------------
 
 func TestFirstEpisodeOfNewMonth(t *testing.T) {
