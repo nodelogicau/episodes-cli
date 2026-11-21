@@ -118,6 +118,14 @@ episodes validate
 
 ## Verbs
 
+A `--since` or `--until` given as a date alone, on `list` or `query`, is a
+day where you are: in `--tz`, then `EPISODES_ZONE`, then the workspace's
+`defaults.zone`, then UTC, never the host's zone. So in a workspace made with
+`--zone Australia/Melbourne`, `--since 2026-11-16` starts at midnight in
+Melbourne. `--json` reports the zone used as `zone`. A date-time bound is its
+own instant. Stored dates are not affected: an `occurred` date with no `tz`
+is still a UTC day, as the format says.
+
 | Verb | What it does |
 |---|---|
 | `init [dir]` | Create `episodes.yaml`, `episodes/` and an empty `index.yaml`. `--author`, `--harness` and `--zone` go to `defaults`. |
@@ -132,7 +140,7 @@ episodes validate
 | `observe <id>` | Write `source_status` on a reference episode, either from `--state` or by hashing `--content-file`, or by comparing `--version`. |
 | `redact <id> --fields … --reason …` | Remove fields from the closed set and write the `redacted` block. Redacting `content.ref` also removes `content.uid`, `content.version`, `content.hash` and `links`, so the tombstone no longer says where the content is, and the result names what it added. It is irreversible and never cascades, and every result says that git history still holds the text. |
 | `show <id> [--children]` | Print an episode, located by the path its id derives (the index is never read). |
-| `list` | Filter by occurred interval (`--since`, `--until`), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. `--ndjson` streams one episode per line instead (see [Streaming](#streaming-list---ndjson)). |
+| `list` | Filter by occurred interval (`--since`, `--until`; a date alone is a day in your zone, see above), `--standpoint`, `--kind` and `--container`, ordered by when episodes occurred (`--by recorded` orders by id). With `--container`, the default order is the container's own: by `ordinal`, then by id, with children that have no `ordinal` last. `--ndjson` streams one episode per line instead (see [Streaming](#streaming-list---ndjson)). |
 | `query <text>` | Find episodes whose `label` or inline text contains any of the query's terms, under Unicode case folding, or whose `content.uid` equals a term exactly. There is no model, cache or index (see [Recall by query](#recall-by-query)). Takes `list`'s filters, plus `--participant` and `--limit`. |
 | `thread <container>` | Print the children in ordinal order, each with its standpoint, time and text. A withdrawn turn keeps its place. |
 | `validate` | Check every file, the index and every segment. Exits 4 on any error. |
@@ -269,8 +277,8 @@ episodes query "mid:abc@example.com" --json
 episodes query invoice --participant mailto:alex@example.org
 ```
 
-`--since`, `--until`, `--standpoint`, `--kind` and `--container` mean what
-they mean for `list`. `--participant` keeps episodes whose `participants`
+`--since`, `--until`, `--tz`, `--standpoint`, `--kind` and `--container`
+mean what they mean for `list`. `--participant` keeps episodes whose `participants`
 include the reference exactly as written: `mailto:Alex@example.org` does not
 match `mailto:alex@example.org`. A withdrawn episode is never returned, and a
 redacted field never matches. Nothing derived from content is kept anywhere,

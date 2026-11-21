@@ -41,14 +41,17 @@ func zone(name string) *time.Location {
 
 // Filter selects episodes by their indexed fields.
 type Filter struct {
-	Since, Until     *temporal.Value
+	Since, Until *temporal.Value
+	// Loc is the zone a bound given as a date alone is reckoned in: the
+	// reader's zone, not a stored value's (filter-dates-in-zone). Nil is UTC.
+	Loc              *time.Location
 	Standpoint, Kind string
 	Container        string
 }
 
 // Match reports whether an entry passes the filter. The occurred interval
-// must overlap [since, until], each bound a date (the whole day) or a
-// date-time.
+// must overlap [since, until], each bound a date (the whole day in Loc) or
+// a date-time.
 func (f Filter) Match(e store.Entry) bool {
 	if f.Standpoint != "" && e.Standpoint != f.Standpoint {
 		return false
@@ -66,12 +69,12 @@ func (f Filter) Match(e store.Entry) bool {
 	if !ok {
 		return false
 	}
-	if f.Since != nil && to.Before(f.Since.Start(nil)) {
+	if f.Since != nil && to.Before(f.Since.Start(f.Loc)) {
 		return false
 	}
 	if u := f.Until; u != nil {
 		// A date includes its whole day; a date-time is inclusive.
-		if u.DateOnly && !from.Before(u.End(nil)) || !u.DateOnly && from.After(u.Instant) {
+		if u.DateOnly && !from.Before(u.End(f.Loc)) || !u.DateOnly && from.After(u.Instant) {
 			return false
 		}
 	}

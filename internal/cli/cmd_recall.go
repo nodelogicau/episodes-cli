@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -52,9 +53,13 @@ func recall(ws *store.Workspace, l *store.Listing, entries []store.Entry, f quer
 }
 
 // recallFilter is the index-field filter list and query share: --since and
-// --until parsed as dates (whole days) or date-times.
-func recallFilter(since, until, standpoint, kind, container string) (query.Filter, error) {
-	f := query.Filter{Standpoint: standpoint, Kind: kind, Container: container}
+// --until parsed as dates (whole days) or date-times. A date alone is
+// reckoned in the reader's zone (readerZone), whose name is returned for the
+// result to report; zone is "" when neither bound is a date alone, and --tz
+// then is a usage error (filter-dates-in-zone D2, D4).
+func recallFilter(ws *store.Workspace, since, until, tz, standpoint, kind, container string) (f query.Filter, zone string, err error) {
+	f = query.Filter{Standpoint: standpoint, Kind: kind, Container: container}
+	dateAlone := false
 	for _, b := range []struct {
 		flag, v string
 		dst     **temporal.Value
@@ -64,12 +69,25 @@ func recallFilter(since, until, standpoint, kind, container string) (query.Filte
 		}
 		v, err := temporal.Parse(b.v)
 		if err != nil {
-			return f, usageErr("%s: %v", b.flag, err)
+			return f, "", usageErr("%s: %v", b.flag, err)
 		}
+		dateAlone = dateAlone || v.DateOnly
 		*b.dst = &v
 	}
-	return f, nil
+	if !dateAlone {
+		if strings.TrimSpace(tz) != "" {
+			return f, "", usageErr("--tz is the zone a date alone in --since or --until is reckoned in; give one as a date, or drop --tz")
+		}
+		return f, "", nil
+	}
+	if f.Loc, zone, err = readerZone(ws, tz); err != nil {
+		return f, "", err
+	}
+	return f, zone, nil
 }
+
+// tzFilterUsage is --tz's usage on list and query.
+const tzFilterUsage = "the IANA zone a date alone in --since or --until is reckoned in (default: $" + EnvZone + ", then defaults.zone, then UTC)"
 
 func entriesOf(eps []*model.Episode) []store.Entry {
 	out := make([]store.Entry, len(eps))
@@ -135,7 +153,7 @@ func (a *app) showCmd() *cobra.Command {
 }
 
 func (a *app) listCmd() *cobra.Command {
-	var since, until, standpoint, kind, container, by, fields string
+	var since, until, tz, standpoint, kind, container, by, fields string
 	var withdrawn, ndjson bool
 	var limit int
 	cmd := &cobra.Command{
@@ -150,6 +168,11 @@ ordinal last. Withdrawn episodes are left out unless
 --include-withdrawn. An empty result says only that no episodes were found:
 a workspace is not an exhaustive record.
 
+A --since or --until given as a date alone is a day in your zone: --tz, then
+$` + EnvZone + `, then the workspace's defaults.zone, then UTC (never the host's).
+--json then reports the zone used as zone. A date-time is its own instant.
+Stored dates are read as the format says: a date with no tz is a UTC day.
+
 --ndjson streams one JSON object per episode per line, in id order (--by
 recorded) unless --by says otherwise; --by occurred and --by ordinal hold
 the matching index entries, not the episodes, until they are sorted.
@@ -161,10 +184,6 @@ withdrawn episode from any other, and lists withdrawn episodes too. Use
 --fields full to leave them out.`,
 		Args: cobra.NoArgs,
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
-			f, err := recallFilter(since, until, standpoint, kind, container)
-			if err != nil {
-				return err
-			}
 			switch {
 			case ndjson && a.jsonOut:
 				return usageErr("use either --json or --ndjson, not both")
@@ -191,6 +210,10 @@ withdrawn episode from any other, and lists withdrawn episodes too. Use
 				return usageErr("--by must be occurred, recorded or ordinal")
 			}
 			ws, err := a.openWorkspace()
+			if err != nil {
+				return err
+			}
+			f, zone, err := recallFilter(ws, since, until, tz, standpoint, kind, container)
 			if err != nil {
 				return err
 			}
@@ -236,7 +259,11 @@ withdrawn episode from any other, and lists withdrawn episodes too. Use
 			for _, ep := range shown {
 				items = append(items, listItem(ep))
 			}
-			return a.emit(map[string]any{"episodes": items, "count": len(items)}, func(w io.Writer) {
+			out := map[string]any{"episodes": items, "count": len(items)}
+			if zone != "" {
+				out["zone"] = zone
+			}
+			return a.emit(out, func(w io.Writer) {
 				if len(shown) == 0 {
 					fmt.Fprintln(w, "No episodes found.")
 					return
@@ -249,6 +276,7 @@ withdrawn episode from any other, and lists withdrawn episodes too. Use
 	}
 	cmd.Flags().StringVar(&since, "since", "", "occurred on or after: a date (whole day) or a date-time")
 	cmd.Flags().StringVar(&until, "until", "", "occurred on or before: a date (whole day) or a date-time")
+	cmd.Flags().StringVar(&tz, "tz", "", tzFilterUsage)
 	cmd.Flags().StringVar(&standpoint, "standpoint", "", "only episodes from this standpoint")
 	cmd.Flags().StringVar(&kind, "kind", "", "only episodes of this kind")
 	cmd.Flags().StringVar(&container, "container", "", "only episodes in this container")

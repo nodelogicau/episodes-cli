@@ -45,6 +45,46 @@ func TestFilterOverlap(t *testing.T) {
 	}
 }
 
+// filter-dates-in-zone: a date-alone bound is a day in Loc.
+func TestFilterInZone(t *testing.T) {
+	mel, err := temporal.LoadZone("Australia/Melbourne")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 09:12 on the 16th in Melbourne is 22:12 UTC on the 15th.
+	email := entry("e", "2026-11-16T09:12:00+11:00", "", "")
+	since := Filter{Since: val(t, "2026-11-16")}
+	if since.Match(email) {
+		t.Error("UTC day matched")
+	}
+	since.Loc = mel
+	if !since.Match(email) {
+		t.Error("Melbourne day did not match")
+	}
+	// 08:00 on the 17th in Melbourne is 21:00 UTC on the 16th.
+	late := entry("e", "2026-11-17T08:00:00+11:00", "", "")
+	until := Filter{Until: val(t, "2026-11-16")}
+	if !until.Match(late) {
+		t.Error("UTC until")
+	}
+	until.Loc = mel
+	if until.Match(late) {
+		t.Error("Melbourne until matched the next local day")
+	}
+	// A date-time bound is its own instant whatever Loc.
+	dt := Filter{Since: val(t, "2026-11-16T00:00:00Z"), Loc: mel}
+	if dt.Match(email) {
+		t.Error("date-time bound moved by Loc")
+	}
+	// A stored date with no tz is still a UTC day: 2026-11-16 runs to
+	// 2026-11-17T00:00Z, after a Melbourne --since 2026-11-17 begins
+	// (2026-11-16T13:00Z), so they overlap.
+	stored := Filter{Since: val(t, "2026-11-17"), Loc: mel}
+	if !stored.Match(entry("e", "2026-11-16", "", "")) {
+		t.Error("stored date reckoned in Loc")
+	}
+}
+
 func TestSortByOccurred(t *testing.T) {
 	es := []store.Entry{
 		entry("c", "2026-11-03T00:30:00+11:00", "", ""),     // 2026-11-02T13:30Z

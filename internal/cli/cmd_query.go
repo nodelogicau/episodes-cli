@@ -16,7 +16,7 @@ import (
 )
 
 func (a *app) queryCmd() *cobra.Command {
-	var since, until, standpoint, kind, container, participant string
+	var since, until, tz, standpoint, kind, container, participant string
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "query <text>...",
@@ -40,7 +40,9 @@ distinct terms matched, most first, then by id, newest first. --limit applies
 after ordering. A container is returned only when it matched itself, not
 because a child did; each result carries its container.
 
---since, --until, --standpoint, --kind and --container filter as for list.
+--since, --until, --tz, --standpoint, --kind and --container filter as for
+list: a date alone is a day in your zone (--tz, then $` + EnvZone + `, then
+defaults.zone, then UTC), and --json reports it as zone.
 --participant keeps episodes whose participants include the reference
 exactly as written. Withdrawn episodes are never returned, and a redacted
 field never matches. Every candidate file is read, so a query is linear in
@@ -49,11 +51,11 @@ were found: a workspace is not an exhaustive record.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: a.run(func(cmd *cobra.Command, args []string) error {
 			q := strings.Join(args, " ")
-			f, err := recallFilter(since, until, standpoint, kind, container)
+			ws, err := a.openWorkspace()
 			if err != nil {
 				return err
 			}
-			ws, err := a.openWorkspace()
+			f, zone, err := recallFilter(ws, since, until, tz, standpoint, kind, container)
 			if err != nil {
 				return err
 			}
@@ -89,7 +91,11 @@ were found: a workspace is not an exhaustive record.`,
 				it["resolution"], it["matched"] = r.Resolution, r.Matched
 				items = append(items, it)
 			}
-			return a.emit(map[string]any{"query": q, "episodes": items, "count": len(items)}, func(w io.Writer) {
+			out := map[string]any{"query": q, "episodes": items, "count": len(items)}
+			if zone != "" {
+				out["zone"] = zone
+			}
+			return a.emit(out, func(w io.Writer) {
 				if len(results) == 0 {
 					fmt.Fprintln(w, "No episodes found.")
 					return
@@ -103,6 +109,7 @@ were found: a workspace is not an exhaustive record.`,
 	}
 	cmd.Flags().StringVar(&since, "since", "", "occurred on or after: a date (whole day) or a date-time")
 	cmd.Flags().StringVar(&until, "until", "", "occurred on or before: a date (whole day) or a date-time")
+	cmd.Flags().StringVar(&tz, "tz", "", tzFilterUsage)
 	cmd.Flags().StringVar(&standpoint, "standpoint", "", "only episodes from this standpoint")
 	cmd.Flags().StringVar(&kind, "kind", "", "only episodes of this kind")
 	cmd.Flags().StringVar(&container, "container", "", "only episodes in this container")
