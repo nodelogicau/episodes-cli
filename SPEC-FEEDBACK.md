@@ -1,18 +1,18 @@
 # Feedback on the Episodes Format draft from the `episodes` reference implementation
 
-The [Episodes Format](https://github.com/nodelogicau/episodes) README says that
-no implementation exists. This file records the points where implementing the
-draft forced a decision the text did not make, what this implementation
-decided, and what we propose the text say. "We" below means this
-implementation as it was when the item was raised.
+This file records the points where implementing the
+[Episodes Format](https://github.com/nodelogicau/episodes) draft forced a
+decision the text did not make, what this implementation decided, and what
+we propose the text say. "We" below means this implementation as it was
+when the item was raised.
 
 Items 1 to 16 come from the design of the `bootstrap-episodes-cli` change
 (v0.1.0). Items 17 and 18 were found while implementing it, when the
 README's examples and the upstream acceptance scenarios were run as tests.
 Items 1 to 16 were raised on 2026-11-13 as
 [nodelogicau/episodes#19](https://github.com/nodelogicau/episodes/issues/19)
-to [#34](https://github.com/nodelogicau/episodes/issues/34), one issue each,
-and are open. Items 17 and 18 were raised on 2026-11-14 as
+to [#34](https://github.com/nodelogicau/episodes/issues/34), one issue each.
+Items 17 and 18 were raised on 2026-11-14 as
 [#35](https://github.com/nodelogicau/episodes/issues/35) and
 [#36](https://github.com/nodelogicau/episodes/issues/36).
 
