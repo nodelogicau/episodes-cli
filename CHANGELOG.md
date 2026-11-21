@@ -5,12 +5,12 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-21
+
+Recall by free text, and installing with Homebrew.
+
 ### Added
 
-- **Homebrew cask** (#21). `brew install nodelogicau/tap/episodes` on macOS
-  or Linux, from the same tap as `particulars` and `intentions`. GoReleaser
-  publishes the cask with each release, and it clears macOS's quarantine
-  flag, since the binaries are not signed or notarised.
 - **`episodes query <text>`: recall by free text, with no model** (#16,
   upstream change `recall-by-query`, nodelogicau/episodes#38 to #42). It
   follows the format's baseline. The query and each of its terms are trimmed
@@ -25,6 +25,10 @@ All notable changes to `episodes` are recorded here. The format follows
   matches. There is no cache, so a query reads every file the filters leave:
   1.15 s over 20,000 episodes, or 650 ms with `--standpoint` halving them.
   Adds the dependency `golang.org/x/text` for case folding.
+- **Homebrew cask** (#21). `brew install nodelogicau/tap/episodes` on macOS
+  or Linux, from the same tap as `particulars` and `intentions`. GoReleaser
+  publishes the cask with each release, and it clears macOS's quarantine
+  flag, since the binaries are not signed or notarised.
 
 ## [0.1.0] - 2026-11-21
 
