@@ -159,3 +159,64 @@ func BenchmarkListNDJSONIndex100k(b *testing.B) { benchListNDJSON(b, 730*24*time
 // BenchmarkListNDJSONIndex100kOpen is the worst case: all 100,000 in the
 // open months, so the first line waits on parsing the whole root.
 func BenchmarkListNDJSONIndex100kOpen(b *testing.B) { benchListNDJSON(b, 20*24*time.Hour) }
+
+// seedNotes writes n inline episodes directly, a label and a paragraph of
+// text each, alternating between two standpoints, and one in a hundred
+// mentioning an invoice; then rebuilds the index once.
+func seedNotes(b *testing.B, dir string, n int) {
+	b.Helper()
+	w, _, err := store.Init(dir, store.NewConfig())
+	if err != nil {
+		b.Fatal(err)
+	}
+	end := time.Now().UTC().Add(-24 * time.Hour)
+	step := 14 * 24 * time.Hour / time.Duration(n)
+	para := strings.Repeat("We talked through the session timeout and the deploy plan for next week. ", 3)
+	for i := 0; i < n; i++ {
+		id := idAt(end.Add(-time.Duration(n-i) * step))
+		sp, text := jane, para
+		if i%2 == 1 {
+			sp = ada
+		}
+		if i%100 == 0 {
+			text += "Paid the INVOICE today."
+		}
+		ep := &model.Episode{ID: id, Type: model.TypeEpisode, Kind: "note",
+			Occurred:   model.Occurred{Start: "2026-11-07T14:24:00+11:00", Basis: model.BasisStated},
+			Standpoint: sp, Label: fmt.Sprintf("Note %d", i),
+			Content: model.Content{Mode: model.ModeInline, MediaType: "text/markdown", Derivation: "verbatim", Text: &text},
+			Source:  model.Source{Author: ada}, Timestamp: "2026-11-08T00:00:00Z"}
+		data, _ := model.Encode(ep)
+		p := w.Path(id)
+		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, data, 0o644); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if _, err := w.Rebuild(); err != nil {
+		b.Fatal(err)
+	}
+}
+
+// BenchmarkQuery20k is one `query` over 20,000 inline episodes in the open
+// months, unfiltered (every file parsed and matched) and with --standpoint
+// (half of them).
+func BenchmarkQuery20k(b *testing.B) {
+	benchEnv(b)
+	dir := filepath.Join(b.TempDir(), "ws")
+	seedNotes(b, dir, 20000)
+	for _, c := range []struct {
+		name string
+		args []string
+	}{{"unfiltered", nil}, {"standpoint", []string{"--standpoint", jane}}} {
+		b.Run(c.name, func(b *testing.B) {
+			args := append([]string{"query", "invoice ada", "--workspace", dir, "--json"}, c.args...)
+			for i := 0; i < b.N; i++ {
+				var out, errb bytes.Buffer
+				if code := Execute(args, strings.NewReader(""), &out, &errb, func() bool { return false }); code != 0 {
+					b.Fatalf("exit %d: %s", code, errb.String())
+				}
+			}
+		})
+	}
+}

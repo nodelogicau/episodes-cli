@@ -8,6 +8,22 @@ go test ./internal/store ./internal/query -run '^$' -bench . -benchtime 10x
 go test ./internal/cli -run '^$' -bench . -benchtime 3x -timeout 30m
 ```
 
+## 2026-11-21, `recall-by-query` (#16)
+
+| Benchmark | Target | Result |
+|---|---|---|
+| `BenchmarkQuery20k/unfiltered` (20,000 inline episodes, every one parsed and matched) | | **1.15 s** |
+| `BenchmarkQuery20k/standpoint` (`--standpoint`, half of them) | | **650 ms** |
+
+The query is `invoice ada`, over 20,000 inline notes in the open months, each
+with a label and about 220 characters of text, alternating between two
+standpoints. There is no target: the baseline is linear in history by
+definition, and anything faster needs a derived cache, which this change
+leaves out. Opening the files accounts for about 70% of the time, and
+parsing them for most of the rest. Case folding and matching hardly
+register. The cost scales with the number of files the index filters leave,
+so `--standpoint`, `--kind`, `--since` and `--until` cut it in proportion.
+
 ## 2026-11-21, `bulk-import` (#1)
 
 | Benchmark | Target | Result |

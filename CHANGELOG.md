@@ -5,6 +5,23 @@ All notable changes to `episodes` are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`episodes query <text>`: recall by free text, with no model** (#16,
+  upstream change `recall-by-query`, nodelogicau/episodes#38 to #42). It
+  follows the format's baseline. The query and each of its terms are trimmed
+  of whitespace and of punctuation at their edges, and an episode matches
+  when any of them occurs, under full Unicode case folding, in its `label` or
+  its inline text. A term equal to its `content.uid` also matches. Results
+  carry `resolution` (`uid` or `lexical`) and `matched`. They are ordered by
+  resolution, then by distinct terms matched, then by id, newest first, and
+  `--limit` applies last. A container is returned only when it matched
+  itself. `list`'s filters apply, and `--participant` compares references as
+  written. Withdrawn episodes are never returned, and a redacted field never
+  matches. There is no cache, so a query reads every file the filters leave:
+  1.15 s over 20,000 episodes, or 650 ms with `--standpoint` halving them.
+  Adds the dependency `golang.org/x/text` for case folding.
+
 ## [0.1.0] - 2026-11-21
 
 The first release. A complete, byte-stable writer for every shape of episode
