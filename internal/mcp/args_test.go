@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -23,14 +24,15 @@ func TestBuild(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"--kind=email", "--standpoint=ada", "--participant=a", "--participant=b", "--link=via=epi_T",
-		"--ordinal=2", "--ref=--kind=other", "--hash-file=/ws/inbox/1.eml", "--allow-duplicate",
+		"--ordinal=2", "--ref=--kind=other", "--hash-file=" + filepath.Join("/ws", "inbox", "1.eml"), "--allow-duplicate",
 		"--occurred=2026-11-16", "--basis=stated"}
 	if !reflect.DeepEqual(b.flags, want) || len(b.pos) != 0 || b.set["model"] {
 		t.Fatalf("%q", b.flags)
 	}
 	// An absolute path is kept; positionals are separate.
-	b, _ = build(observeIn{ID: "epi_E", ContentFile: "/abs/x"}, "/ws")
-	if !reflect.DeepEqual(b.flags, []string{"--content-file=/abs/x"}) || !reflect.DeepEqual(b.pos, []string{"epi_E"}) {
+	abs := filepath.Join(t.TempDir(), "x")
+	b, _ = build(observeIn{ID: "epi_E", ContentFile: abs}, "/ws")
+	if !reflect.DeepEqual(b.flags, []string{"--content-file=" + abs}) || !reflect.DeepEqual(b.pos, []string{"epi_E"}) {
 		t.Fatalf("%q %q", b.flags, b.pos)
 	}
 	if _, err := build(recordInlineIn{episodeFields: episodeFields{Links: []Link{{Rel: "via"}}}}, "/ws"); err == nil {
