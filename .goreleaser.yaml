@@ -59,8 +59,6 @@ homebrew_casks:
     commit_author:
       name: episodes-release
       email: noreply@nodelogic.au
-    url:
-      verified: github.com/nodelogicau/episodes-cli/
     binaries:
       - episodes
     # The binaries are not signed or notarised. Homebrew deprecated
